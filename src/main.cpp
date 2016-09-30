@@ -120,6 +120,14 @@ bool compute_kaze_descriptor(string filename) {
   return true;
 }
 
+void mat2float(cv::Mat img, std::vector<float> &img_float) {
+  for (int i = 0; i < img.rows; ++i) {
+    for (int j = 0; j < img.cols; ++j) {
+      img_float.push_back(img.at<unsigned char>(i, j) / 255.0f);
+    }
+  }
+}
+
 bool compute_sift_descriptor(string filename) {
   // Read image
   Mat img = imread(filename, IMREAD_GRAYSCALE);
@@ -131,29 +139,52 @@ bool compute_sift_descriptor(string filename) {
   }
 
   // Resize image
-  int max_size = 640;
-  if (img.cols > max_size)
-    resize(img, img, Size(0, 0), (float)max_size / float(img.cols), (float)max_size / float(img.cols), INTER_CUBIC);
+  //int max_size = 640;
+  //if (img.cols > max_size)
+  Mat aux_img;
+  resize(img, aux_img, Size(100, 100), INTER_CUBIC);
+  std::vector<float> img_float;
+  mat2float(img, img_float);
 
   // Compute descriptor
-  VlDsiftFilter *vlf = vl_dsift_new(img.rows, img.cols);
+  VlDsiftFilter* vlf = vl_dsift_new(aux_img.rows, aux_img.cols);
   vl_dsift_set_steps(vlf, STRIDE, STRIDE);
 
-  vector<KeyPoint> kpts;
-  Mat desc;
-  Ptr<Feature2D> sift = xfeatures2d::SIFT::create();
-  sift->detectAndCompute(img, noArray(), kpts, desc);
+  VlDsiftDescriptorGeometry vlf_geometry = {1, 4, 4, 4, 4};
+  vl_dsift_set_geometry(vlf, &vlf_geometry);
+  vl_dsift_process(vlf, &img_float[0]);
+  int nkps = vl_dsift_get_keypoint_num(vlf);
+  int sdesc = vl_dsift_get_descriptor_size(vlf);
+  std::cout << "Number of KEYPOINTS1: " << nkps << std::endl;
+  std::cout << "Size of descriptor1: " <<  sdesc << std::endl;
+  VlDsiftKeypoint const* keypoints1 = vl_dsift_get_keypoints(vlf);
+  float const* descriptors1 = vl_dsift_get_descriptors(vlf);
 
-  cout << "\nNew descriptor_______________________________________" << endl;
-  cout << "Keypoints size:      " << kpts.size() << endl;
-  cout << "Descriptor type:     " << sift->descriptorType() << endl;
-  // cout << "Descriptor channels: " << sift->descriptorChannels() << endl;
-  cout << "Descriptor size:     " << sift->descriptorSize() << " " << desc.cols << " " << desc.rows << endl;
+  vlf_geometry = {1, 4, 4, 8, 8};
+  vl_dsift_set_geometry(vlf, &vlf_geometry);
+  vl_dsift_process(vlf, &img_float[0]);
+  nkps = vl_dsift_get_keypoint_num(vlf);
+  sdesc = vl_dsift_get_descriptor_size(vlf);
+  std::cout << "Number of KEYPOINTS2: " << nkps << std::endl;
+  std::cout << "Size of descriptor2: " <<  sdesc << std::endl;
+  VlDsiftKeypoint const* keypoints2 = vl_dsift_get_keypoints(vlf);
+  float const* descriptors2 = vl_dsift_get_descriptors(vlf);
 
-  // Save descriptor
-  save_image_descriptor(filename, kpts, desc, "sift");
+  //vector<KeyPoint> kpts;
+  //Mat desc;
+  //Ptr<Feature2D> sift = xfeatures2d::SIFT::create();
+  //sift->detectAndCompute(img, noArray(), kpts, desc);
 
-  free(vlf);
+  //cout << "\nNew descriptor_______________________________________" << endl;
+  //cout << "Keypoints size:      " << kpts.size() << endl;
+  //cout << "Descriptor type:     " << sift->descriptorType() << endl;
+  //// cout << "Descriptor channels: " << sift->descriptorChannels() << endl;
+  //cout << "Descriptor size:     " << sift->descriptorSize() << " " << desc.cols << " " << desc.rows << endl;
+
+  //// Save descriptor
+  //save_image_descriptor(filename, kpts, desc, "sift");
+
+  vl_dsift_delete(vlf);
 
   return true;
 }
