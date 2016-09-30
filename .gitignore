@@ -1,0 +1,8 @@
+*~
+.o
+.tmp
+*.orig
+build/
+data/
+*.org
+.clang-format
