@@ -7,14 +7,16 @@
 #include <functional>
 #include <numeric>
 #include <sys/time.h>
-
 #include "opencv2/xfeatures2d.hpp"
+
+#define STRIDE 4
 
 // The VLFeat header files need to be declared external.
 extern "C" {
     #include <vl/generic.h>
     #include <vl/gmm.h>
     #include <vl/fisher.h>
+    #include <vl/dsift.h>
 }
 
 using namespace std;
@@ -72,13 +74,19 @@ void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &
 
     int rows = 0;
     int cols = 0; 
-    fscanf(ofp, "%d %d \n", &cols, &rows);
+    int res = fscanf(ofp, "%d %d \n", &cols, &rows);
+    if (res != 0) {
+        perror("There was an error reading the file.");
+    }
     desc = Mat::zeros(rows, cols, CV_32F);
     
     for(int i = 0; i < rows; i++) {
         for(int j = 0; j < cols; j++) {
             float a;
-            fscanf(ofp, "%f ", &a);
+            int res = fscanf(ofp, "%f ", &a);
+            if (res != 0) {
+                perror("There was an error reading the file.");;
+            }
             desc.at<float>(i,j) = a; 
         }
         fprintf(ofp, "\n");
@@ -137,6 +145,9 @@ bool compute_sift_descriptor(string filename)
         resize(img, img, Size(0, 0), (float)max_size / float(img.cols), (float)max_size / float(img.cols), INTER_CUBIC);
 
     // Compute descriptor
+    VlDsiftFilter* vlf = vl_dsift_new(img.rows, img.cols);
+    vl_dsift_set_steps(vlf, STRIDE, STRIDE);
+
     vector<KeyPoint> kpts; 
     Mat desc;
     Ptr<Feature2D> sift = xfeatures2d::SIFT::create();
@@ -150,6 +161,8 @@ bool compute_sift_descriptor(string filename)
 
     // Save descriptor
     save_image_descriptor(filename, kpts, desc, "sift");
+
+    free(vlf);
     
     return true;
 }
@@ -172,14 +185,14 @@ void compute_descriptors_and_save(string in_folder, DESC_TYPE desc_type)
 }
 
 
-void print_image_descriptor(Mat &desc, int MAX_DESC, DESC_TYPE desc_type)
+void print_image_descriptor(Mat &desc, unsigned int MAX_DESC, DESC_TYPE desc_type)
 {
     vl_size numData = desc.rows;
     vl_size dimension = desc.cols;
    
     TYPE * data = (TYPE*)vl_malloc(sizeof(TYPE)*numData*dimension);
-    for(int row = 0; row < numData && row < MAX_DESC; row++) {
-        for(int col = 0; col < dimension; col++) {
+    for(unsigned int row = 0; row < numData && row < MAX_DESC; row++) {
+        for(unsigned int col = 0; col < dimension; col++) {
             if( desc_type == SIFT_DESC ){
                 data[row*dimension+col] = desc.at<float>(row, col) / 255.0f;
                 //data[row*dimension+col] = (desc.at<float>(row, col));
@@ -200,7 +213,6 @@ void save_gmm(VlGMM * gmm, string dataFileResults, vl_size numData)
     FILE * ofp;
 
     vl_size d, cIdx;
-    vl_uindex i_d;
 
     vl_size dimension = vl_gmm_get_dimension(gmm) ;
     vl_size numClusters = vl_gmm_get_num_clusters(gmm) ;
@@ -238,35 +250,47 @@ void load_gmm(VlGMM* &gmm, string dataFileResults)
     FILE * ofp;
 
     vl_size d, cIdx;
-    vl_uindex i_d;
 
     ofp = fopen(dataFileResults.c_str(), "r");
 
     vl_size dimension, numClusters, iterations, repetitions, numData;
-    float * sigmas;
-    float * means;
-    float * weights;
-    float * posteriors;
     int verb;
     vl_type dataType;
 
-    fscanf(ofp, "%d %llu %llu", &verb, &iterations, &repetitions);
-    fscanf(ofp, "%llu %llu %llu %u", &numData, &dimension, &numClusters, &dataType);
+    int res = fscanf(ofp, "%d %llu %llu", &verb, &iterations, &repetitions);
+    if (res != 0) {
+        perror("There was an error reading the file.");
+    }
+    res = fscanf(ofp, "%llu %llu %llu %u", &numData, &dimension, &numClusters, &dataType);
+    if (res != 0) {
+        perror("There was an error reading the file.");
+    }
 
-    means = (float*)vl_malloc(sizeof(float)*numClusters*dimension);
-    weights = (float*)vl_malloc(sizeof(float)*numClusters);
-    sigmas = (float*)vl_malloc(sizeof(float)*numClusters*dimension);
-    posteriors = (float*)vl_malloc(sizeof(float)*numClusters*numData);
+    float* means = (float*)vl_malloc(sizeof(float)*numClusters*dimension);
+    float* weights = (float*)vl_malloc(sizeof(float)*numClusters);
+    float* sigmas = (float*)vl_malloc(sizeof(float)*numClusters*dimension);
 
     for(cIdx = 0; cIdx < numClusters; cIdx++) {
         for(d = 0; d < dimension; d++) {
-            fscanf(ofp, "%f ",& ((float*)means)[cIdx*dimension+d]);
+            res = fscanf(ofp, "%f ",& ((float*)means)[cIdx*dimension+d]);
+            if (res != 0) {
+                perror("There was an error reading the file.");
+            }
         }
         for(d = 0; d < dimension; d++) {
-            fscanf(ofp, "%f ",& ((float*)sigmas)[cIdx*dimension+d]);
+            res = fscanf(ofp, "%f ",& ((float*)sigmas)[cIdx*dimension+d]);
+            if (res != 0) {
+                perror("There was an error reading the file.");
+            }
         }
-        fscanf(ofp, "%f ",& ((float*)weights)[cIdx]);
-        fscanf(ofp, "\n");
+        res = fscanf(ofp, "%f ",& ((float*)weights)[cIdx]);
+        if (res != 0) {
+            perror("There was an error reading the file.");
+        }
+        res = fscanf(ofp, "\n");
+        if (res != 0) {
+            perror("There was an error reading the file.");
+        }
     }
 
     gmm = vl_gmm_new(VL_F_TYPE, dimension, numClusters) ;
@@ -309,8 +333,8 @@ void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_e
     vl_size numData = l_desc.rows;
     vl_size dimension = l_desc.cols;
     TYPE * data_to_encode = (TYPE*)vl_malloc(sizeof(TYPE)*numData*dimension);
-    for(int row = 0; row < numData; row++)
-        for(int col = 0; col < dimension; col++){
+    for(unsigned int row = 0; row < numData; row++)
+        for(unsigned int col = 0; col < dimension; col++){
             if( desc_type == SIFT_DESC ){
                 //data_to_encode[row*dimension+col] = (l_desc.at<unsigned char>(row, col)/ 255.0f);
                 //cout << l_desc.at<unsigned char>(row, col)/ 255.0f << endl;
@@ -342,7 +366,7 @@ void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_e
     string fv_data_out = filename.substr(0,filename.find_last_of("."))+"_fv";
     cout << "Writing FV data in: " << fv_data_out << endl;
     ofp = fopen(fv_data_out.c_str(), "w");
-    for(int i = 0; i < 2*dimension*numClusters; i++) {
+    for(unsigned int i = 0; i < 2*dimension*numClusters; i++) {
         fprintf(ofp, " %f ",(enc)[i]);
         vec_enc.push_back((enc)[i]);
     }
@@ -380,7 +404,7 @@ vl_size load_all_descriptors(vector<cv::String> &images_list, float* &data, int 
 
     //FILE *ofp = fopen("./GMMDescriptors", "w+");
     
-    int GMM_size = min(gmm_words, (int)count);
+    unsigned int GMM_size = min(gmm_words, (int)count);
     for (size_t i=0; i< GMM_size; i++)
     {
         // Load descriptors
@@ -391,8 +415,8 @@ vl_size load_all_descriptors(vector<cv::String> &images_list, float* &data, int 
         vl_size numData = l_desc.rows;
         cout << "Descriptors to add: " << numData << endl;
         //fprintf(ofp, "%llu %llu ", numData, dimension);
-        for(int row = 0; row < numData; row++) {
-            for(int col = 0; col < dimension; col++) {
+        for(unsigned int row = 0; row < numData; row++) {
+            for(unsigned int col = 0; col < dimension; col++) {
                 if( desc_type == SIFT_DESC ){
                     data[row*dimension+col] = (l_desc.at<float>(row, col));
                     //data[all_elements+row*dimension+col] = (l_desc.at<unsigned char>(row, col) / 255.0f);
@@ -453,7 +477,7 @@ void show_results(vector<int> &index, vector<cv::String> &images_list, int k, DE
     int width = 640;
     int height = 480;
     Mat to_show = Mat::zeros((k/3)*height, 3*width, CV_8UC3);
-    for(int i=0; i<index.size(); i++)
+    for(unsigned int i=0; i<index.size(); i++)
     {
         Mat img = imread(images_list[index[i]]);
         Mat res = Mat::zeros(img.cols, img.rows, CV_8UC3);
@@ -492,7 +516,6 @@ void get_knn(string img_query, string in_folder, int k, VlGMM* &gmm, DESC_TYPE d
 
     // Concatenate FVs
     cout << "\nLoading FVs for knn:" << endl;
-    int accum_size = 0;
     Mat dataset(count,enc_query.size(),CV_32F);
     for (size_t i=0; i<count; i++)
     {
@@ -529,7 +552,7 @@ void get_knn(string img_query, string in_folder, int k, VlGMM* &gmm, DESC_TYPE d
 
     // Print single search results
     cout << "\nTop " << k << " matches_____________________________ \n";
-    for(int i=0; i < index.size(); i++)
+    for(unsigned int i=0; i < index.size(); i++)
         cout << "(index, dist): " << index[i] << ",\t" << dist[i] << " \t" << images_list[index[i]] << endl;
     
     // Concatenate top-k images to show results
@@ -582,12 +605,6 @@ void no_encoding_similarity_test(Mat &desc1, Mat &desc2, vector<KeyPoint> &kpts1
     cout << "Ratio:                              \t" << inlier_ratio << endl;
 }
 
-
-
-static bool cmp_euc(pair<double,int> u, pair<double,int> v)
-{
-   return u.first > v.first;
-}
 
 static bool cmp_l2(pair<double,int> u, pair<double,int> v)
 {
