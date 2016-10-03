@@ -120,10 +120,10 @@ bool compute_kaze_descriptor(string filename) {
   return true;
 }
 
-void mat2float(cv::Mat img, std::vector<float> &img_float) {
+void mat2float(cv::Mat img, float* img_float) {
   for (int i = 0; i < img.rows; ++i) {
     for (int j = 0; j < img.cols; ++j) {
-      img_float.push_back(img.at<unsigned char>(i, j) / 255.0f);
+      img_float[i * img.rows + j] = img.at<unsigned char>(i, j) / 255.0f;
     }
   }
 }
@@ -143,26 +143,39 @@ bool compute_sift_descriptor(string filename) {
   //if (img.cols > max_size)
   Mat aux_img;
   resize(img, aux_img, Size(100, 100), INTER_CUBIC);
-  std::vector<float> img_float;
-  mat2float(img, img_float);
+  float* img_float = (float*)calloc((size_t)(aux_img.rows * aux_img.cols), sizeof(float));
+  assert(img_float != NULL);
+  mat2float(aux_img, img_float);
 
   // Compute descriptor
   VlDsiftFilter* vlf = vl_dsift_new(aux_img.rows, aux_img.cols);
   vl_dsift_set_steps(vlf, STRIDE, STRIDE);
 
-  VlDsiftDescriptorGeometry vlf_geometry = {1, 4, 4, 4, 4};
+  VlDsiftDescriptorGeometry vlf_geometry = {8, 4, 4, 4, 4};
   vl_dsift_set_geometry(vlf, &vlf_geometry);
-  vl_dsift_process(vlf, &img_float[0]);
+  std::cout << "created new dsift struct2\n";
+  std::cout << img_float[0] << std::endl;
+  vl_dsift_process(vlf, img_float);
+  std::cout << "created new dsift struct3\n";
   int nkps = vl_dsift_get_keypoint_num(vlf);
   int sdesc = vl_dsift_get_descriptor_size(vlf);
+  assert(sdesc == 128);
   std::cout << "Number of KEYPOINTS1: " << nkps << std::endl;
   std::cout << "Size of descriptor1: " <<  sdesc << std::endl;
   VlDsiftKeypoint const* keypoints1 = vl_dsift_get_keypoints(vlf);
   float const* descriptors1 = vl_dsift_get_descriptors(vlf);
 
-  vlf_geometry = {1, 4, 4, 8, 8};
+  //for (int i = 0; i < nkps; i++) {
+  //    for (int j = 0; j < 128; j++) {
+  //        std::cout << descriptors1[i * 128 + j] << " ";
+  //    }
+  //    std::cout << std::endl << std::endl << std::endl << std::endl;
+  //    
+  //}
+
+  vlf_geometry = {8, 4, 4, 8, 8};
   vl_dsift_set_geometry(vlf, &vlf_geometry);
-  vl_dsift_process(vlf, &img_float[0]);
+  vl_dsift_process(vlf, img_float);
   nkps = vl_dsift_get_keypoint_num(vlf);
   sdesc = vl_dsift_get_descriptor_size(vlf);
   std::cout << "Number of KEYPOINTS2: " << nkps << std::endl;
@@ -185,6 +198,7 @@ bool compute_sift_descriptor(string filename) {
   //save_image_descriptor(filename, kpts, desc, "sift");
 
   vl_dsift_delete(vlf);
+  free(img_float);
 
   return true;
 }
