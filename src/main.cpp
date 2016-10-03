@@ -29,7 +29,7 @@ using namespace cv;
 enum DESC_TYPE { KAZE_DESC, SIFT_DESC };
 string DESC_NAMES[] = {"kaze", "sift"};
 
-void save_image_descriptor(string filename, vector<KeyPoint> &kpts, Mat &desc, string desc_name) {
+void save_image_descriptor(string filename, std::vector< std::vector<float> > feats) {
   /*
   string data_out = filename.substr(0,filename.find_last_of("."))+"_"+desc_name;
   cout << "Writing descriptor data in: " << data_out << endl;
@@ -39,22 +39,24 @@ void save_image_descriptor(string filename, vector<KeyPoint> &kpts, Mat &desc, s
   out_file << "keypoints" << kpts;
   out_file.release();
   */
-  string data_out = filename.substr(0, filename.find_last_of(".")) + "_" + desc_name;
+  string data_out = filename.substr(0, filename.find_last_of(".")) + "_sift";
   FILE *ofp;
   ofp = fopen(data_out.c_str(), "w");
   cout << "Writing descriptor data in: " << data_out << endl;
 
-  fprintf(ofp, "%d %d \n", desc.cols, desc.rows);
-  for (int i = 0; i < desc.rows; i++) {
-    for (int j = 0; j < desc.cols; j++) {
-      fprintf(ofp, "%f ", desc.at<float>(i, j));
+  int rows = feats.size();
+  int cols = feats[0].size();
+  fprintf(ofp, "%d %d \n", cols, rows);
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < cols; ++j) {
+      fprintf(ofp, "%f ", feats[i][j]);
     }
     fprintf(ofp, "\n");
   }
   fclose(ofp);
 }
 
-void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &desc, string desc_name) {
+void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &desc) {
   /*
   string data_in = filename.substr(0,filename.find_last_of("."))+"_"+desc_name;
   cout << "Loading descriptor data from: " << data_in << endl;
@@ -66,7 +68,7 @@ void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &
 
   FILE *ofp;
 
-  string data_in = filename.substr(0, filename.find_last_of(".")) + "_" + desc_name;
+  string data_in = filename.substr(0, filename.find_last_of(".")) + "_sift";
   cout << "Loading descriptor data from: " << data_in << endl;
   ofp = fopen(data_in.c_str(), "r");
 
@@ -84,41 +86,12 @@ void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &
       int res = fscanf(ofp, "%f ", &a);
       if (res == EOF) {
         perror("There was an error reading the file.");
-        ;
       }
       desc.at<float>(i, j) = a;
     }
     fprintf(ofp, "\n");
   }
   fclose(ofp);
-}
-
-bool compute_kaze_descriptor(string filename) {
-  // Read image
-  Mat img = imread(filename, IMREAD_GRAYSCALE);
-
-  // Check for invalid input
-  if (!img.data) {
-    cout << "Could not open or find the image" << std::endl;
-    return false;
-  }
-
-  // Compute descriptor
-  vector<KeyPoint> kpts;
-  Mat desc;
-  Ptr<AKAZE> kaze = AKAZE::create(AKAZE::DESCRIPTOR_KAZE, 1024);
-  kaze->detectAndCompute(img, noArray(), kpts, desc);
-
-  cout << "\nNew descriptor_______________________________________" << endl;
-  cout << "Keypoints size:      " << kpts.size() << endl;
-  cout << "Descriptor type:     " << kaze->getDescriptorType() << endl;
-  cout << "Descriptor channels: " << kaze->getDescriptorChannels() << endl;
-  cout << "Descriptor size:     " << kaze->getDescriptorSize() << " " << desc.cols << " " << desc.rows << endl;
-
-  // Save descriptor
-  save_image_descriptor(filename, kpts, desc, "kaze");
-
-  return true;
 }
 
 void mat2float(cv::Mat img, std::vector<float>& img_float) {
@@ -180,8 +153,8 @@ bool compute_sift_descriptor(string filename) {
 
   // Resize image
   Mat aux_img;
-  resize(img, aux_img, Size(100, 100), INTER_CUBIC);
   //TODO: align image here
+  resize(img, aux_img, Size(100, 100), INTER_CUBIC);
   std::vector<float> img_float(aux_img.rows * aux_img.cols);
   mat2float(aux_img, img_float);
 
@@ -218,54 +191,34 @@ bool compute_sift_descriptor(string filename) {
   concatenate_features_kpoints(descriptors1, keypoints1, nkps1, descriptors2, keypoints2, nkps2, sdesc, concat_feats);
   std::cout << "concat size: " << concat_feats.size() << std::endl;
 
-  //vector<KeyPoint> kpts;
-  //Mat desc;
-  //Ptr<Feature2D> sift = xfeatures2d::SIFT::create();
-  //sift->detectAndCompute(img, noArray(), kpts, desc);
-
-  //cout << "\nNew descriptor_______________________________________" << endl;
-  //cout << "Keypoints size:      " << kpts.size() << endl;
-  //cout << "Descriptor type:     " << sift->descriptorType() << endl;
-  //// cout << "Descriptor channels: " << sift->descriptorChannels() << endl;
-  //cout << "Descriptor size:     " << sift->descriptorSize() << " " << desc.cols << " " << desc.rows << endl;
-
-  //// Save descriptor
-  //save_image_descriptor(filename, kpts, desc, "sift");
+  // Save descriptor
+  save_image_descriptor(filename, concat_feats);
 
   vl_dsift_delete(vlf);
   free(descriptors1);
-
   return true;
 }
 
-void compute_descriptors_and_save(string in_folder, DESC_TYPE desc_type) {
+void compute_descriptors_and_save(string in_folder) {
   vector<cv::String> images_list;
   glob(in_folder + "/*.jpg", images_list, false);
 
   size_t count = images_list.size();
   cout << "Images found in folder: " << in_folder << " " << count << endl;
   for (size_t i = 0; i < count; i++) {
-    if (desc_type == SIFT_DESC) {
-      compute_sift_descriptor(images_list[i]);
-    } else if (desc_type == KAZE_DESC) {
-      compute_kaze_descriptor(images_list[i]);
-    }
+    compute_sift_descriptor(images_list[i]);
   }
 }
 
-void print_image_descriptor(Mat &desc, unsigned int MAX_DESC, DESC_TYPE desc_type) {
+void print_image_descriptor(Mat &desc, unsigned int MAX_DESC) {
   vl_size numData = desc.rows;
   vl_size dimension = desc.cols;
 
   TYPE *data = (TYPE *)vl_malloc(sizeof(TYPE) * numData * dimension);
   for (unsigned int row = 0; row < numData && row < MAX_DESC; row++) {
     for (unsigned int col = 0; col < dimension; col++) {
-      if (desc_type == SIFT_DESC) {
-        data[row * dimension + col] = desc.at<float>(row, col) / 255.0f;
-        // data[row*dimension+col] = (desc.at<float>(row, col));
-      } else if (desc_type == KAZE_DESC) {
-        data[row * dimension + col] = desc.at<float>(row, col);
-      }
+      data[row * dimension + col] = desc.at<float>(row, col) / 255.0f;
+      // data[row*dimension+col] = (desc.at<float>(row, col));
       // VL_PRINT("%f ",(float)desc.at<float>(row,col));
       VL_PRINT("%f ", data[row * dimension + col]);
     }
@@ -381,14 +334,14 @@ void train_gmm(void *data, vl_size numData, vl_size dimension, vl_size numCluste
   vl_gmm_cluster(gmm, data, dimension);
 }
 
-void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_enc, VlGMM *&gmm, DESC_TYPE desc_type,
+void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_enc, VlGMM *&gmm,
                                       vl_size numClusters) {
   cout << "\nFV encoding__________________________________________________" << endl;
 
   // Load image descriptor
   vector<KeyPoint> l_kpts;
   Mat l_desc;
-  load_image_descriptor(filename, l_kpts, l_desc, DESC_NAMES[desc_type]);
+  load_image_descriptor(filename, l_kpts, l_desc);
 
   // Transform descriptors data to feed FV
   vl_size numData = l_desc.rows;
@@ -396,14 +349,10 @@ void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_e
   TYPE *data_to_encode = (TYPE *)vl_malloc(sizeof(TYPE) * numData * dimension);
   for (unsigned int row = 0; row < numData; row++)
     for (unsigned int col = 0; col < dimension; col++) {
-      if (desc_type == SIFT_DESC) {
-        // data_to_encode[row*dimension+col] = (l_desc.at<unsigned char>(row, col)/ 255.0f);
-        // cout << l_desc.at<unsigned char>(row, col)/ 255.0f << endl;
-        data_to_encode[row * dimension + col] = (l_desc.at<float>(row, col));
-        // cout << l_desc.at<float>(row, col) << endl;
-      } else if (desc_type == KAZE_DESC) {
-        data_to_encode[row * dimension + col] = (l_desc.at<float>(row, col));
-      }
+      // data_to_encode[row*dimension+col] = (l_desc.at<unsigned char>(row, col)/ 255.0f);
+      // cout << l_desc.at<unsigned char>(row, col)/ 255.0f << endl;
+      data_to_encode[row * dimension + col] = (l_desc.at<float>(row, col));
+      // cout << l_desc.at<float>(row, col) << endl;
     }
 
   // Compute FV. Enc is a vector of size equal to twice the product of dimension and numClusters
@@ -442,7 +391,7 @@ void load_fisher_encoding(vector<float> &enc_vec, string filename) {
 }
 
 vl_size load_all_descriptors(vector<cv::String> &images_list, float *&data, int gmm_words, int count,
-                             DESC_TYPE desc_type, vl_size dimension) {
+                             vl_size dimension) {
   // Concatenate descriptors of gmm_words images to train GMM
   int all_elements = 0;
   int all_words = 0;
@@ -455,7 +404,7 @@ vl_size load_all_descriptors(vector<cv::String> &images_list, float *&data, int 
     // Load descriptors
     Mat l_desc;
     vector<KeyPoint> l_kpts;
-    load_image_descriptor(images_list[i], l_kpts, l_desc, DESC_NAMES[desc_type]);
+    load_image_descriptor(images_list[i], l_kpts, l_desc);
 
     // Concatenate descriptors
     vl_size numData = l_desc.rows;
@@ -463,12 +412,7 @@ vl_size load_all_descriptors(vector<cv::String> &images_list, float *&data, int 
     // fprintf(ofp, "%llu %llu ", numData, dimension);
     for (unsigned int row = 0; row < numData; row++) {
       for (unsigned int col = 0; col < dimension; col++) {
-        if (desc_type == SIFT_DESC) {
-          data[row * dimension + col] = (l_desc.at<float>(row, col));
-          // data[all_elements+row*dimension+col] = (l_desc.at<unsigned char>(row, col) / 255.0f);
-        } else if (desc_type == KAZE_DESC) {
-          data[all_elements + row * dimension + col] = l_desc.at<float>(row, col);
-        }
+        data[row * dimension + col] = (l_desc.at<float>(row, col));
         // fprintf(ofp, "%f ",((float*) data)[all_elements+row*dimension+col]);
       }
     }
@@ -482,8 +426,7 @@ vl_size load_all_descriptors(vector<cv::String> &images_list, float *&data, int 
   return all_descriptors;
 }
 
-void example_get_indexing(string in_folder, int gmm_words, DESC_TYPE desc_type, vl_size dimension,
-                          vl_size numClusters) {
+void example_get_indexing(string in_folder, int gmm_words, vl_size dimension, vl_size numClusters) {
   // Load images list from dataset and shuffle them
   vector<cv::String> images_list;
   glob(in_folder + "/*.jpg", images_list, false);
@@ -493,13 +436,13 @@ void example_get_indexing(string in_folder, int gmm_words, DESC_TYPE desc_type, 
 
   // Load all images descriptors
   TYPE *all_descriptors_data = (TYPE *)vl_malloc(sizeof(TYPE) * gmm_words * 30000 * dimension);
-  vl_size desc_amount = load_all_descriptors(images_list, all_descriptors_data, gmm_words, count, desc_type, dimension);
+  vl_size desc_amount = load_all_descriptors(images_list, all_descriptors_data, gmm_words, count, dimension);
 
   // Train GMM
   VlGMM *gmm = NULL;
   train_gmm(all_descriptors_data, desc_amount, dimension, numClusters, gmm);
   assert(gmm != NULL);
-  string file_out = "./gmm_object_" + DESC_NAMES[desc_type];
+  string file_out = "./gmm_object_sift";
   save_gmm(gmm, file_out, desc_amount);
   // Free memory
   vl_free(all_descriptors_data);
@@ -507,7 +450,7 @@ void example_get_indexing(string in_folder, int gmm_words, DESC_TYPE desc_type, 
   // Generate FV for all images in the dataset and save them
   for (size_t i = 0; i < count; i++) {
     vector<float> enc;
-    compute_fisher_encoding_and_save(images_list[i], enc, gmm, desc_type, numClusters);
+    compute_fisher_encoding_and_save(images_list[i], enc, gmm, numClusters);
     cout << "Fisher vector size: " << enc.size() << endl;
   }
 
@@ -515,7 +458,7 @@ void example_get_indexing(string in_folder, int gmm_words, DESC_TYPE desc_type, 
   vl_gmm_delete(gmm);
 }
 
-void show_results(vector<int> &index, vector<cv::String> &images_list, int k, DESC_TYPE desc_type) {
+void show_results(vector<int> &index, vector<cv::String> &images_list, int k) {
   int width = 640;
   int height = 480;
   Mat to_show = Mat::zeros((k / 3) * height, 3 * width, CV_8UC3);
@@ -532,18 +475,18 @@ void show_results(vector<int> &index, vector<cv::String> &images_list, int k, DE
   gettimeofday(&tp, NULL);
   long int ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
   ostringstream stream;
-  stream << "./result_" << ms << "_" << DESC_NAMES[desc_type] << ".jpg";
+  stream << "./result_" << ms << "_sift.jpg";
   string path = stream.str();
   imwrite(path, to_show);
   cout << "Result saved at: " << path << endl;
 }
 
-void get_knn(string img_query, string in_folder, int k, VlGMM *&gmm, DESC_TYPE desc_type, vl_size numClusters,
+void get_knn(string img_query, string in_folder, int k, VlGMM *&gmm, vl_size numClusters,
              vl_size dimension, bool load) {
   // Compute FV for query image
   // load_fisher_encoding(enc_query, img_query);
   vector<float> enc_query;
-  compute_fisher_encoding_and_save(img_query, enc_query, gmm, desc_type, numClusters);
+  compute_fisher_encoding_and_save(img_query, enc_query, gmm, numClusters);
   cout << "Fisher vector size: " << enc_query.size() << endl;
   Mat query = Mat(1, enc_query.size(), CV_32F);
   memcpy(query.data, enc_query.data(), enc_query.size() * sizeof(float));
@@ -577,12 +520,12 @@ void get_knn(string img_query, string in_folder, int k, VlGMM *&gmm, DESC_TYPE d
     flann::KDTreeIndexParams labels(count);
     // Constructs a nearest neighbor search index for a given dataset
     flann::Index kdtree(dataset, labels);
-    string file_out = "./kdtree_" + DESC_NAMES[desc_type];
+    string file_out = "./kdtree_sift";
     kdtree.save(file_out);
     kdtree.knnSearch(query, index, dist, k, cv::flann::SearchParams(32));
   } else {
     cout << "Loading kdtree index from memory..." << endl;
-    string file_in = "./kdtree_" + DESC_NAMES[desc_type];
+    string file_in = "./kdtree_sift";
     flann::Index kdtree(dataset, flann::SavedIndexParams(file_in));
     kdtree.knnSearch(query, index, dist, k, cv::flann::SearchParams(32));
   }
@@ -593,7 +536,7 @@ void get_knn(string img_query, string in_folder, int k, VlGMM *&gmm, DESC_TYPE d
     cout << "(index, dist): " << index[i] << ",\t" << dist[i] << " \t" << images_list[index[i]] << endl;
 
   // Concatenate top-k images to show results
-  show_results(index, images_list, k, desc_type);
+  show_results(index, images_list, k);
 }
 
 void encoding_similarity_test(string img1, string img2, vector<pair<double, int> > &l2,
@@ -641,12 +584,12 @@ void no_encoding_similarity_test(Mat &desc1, Mat &desc2, vector<KeyPoint> &kpts1
 
 static bool cmp_l2(pair<double, int> u, pair<double, int> v) { return u.first < v.first; }
 
-void get_k_brute_force(string img_query, string in_folder, int k, VlGMM *&gmm, DESC_TYPE desc_type, vl_size numClusters,
+void get_k_brute_force(string img_query, string in_folder, int k, VlGMM *&gmm, vl_size numClusters,
                        vl_size dimension) {
   // Compute FV for query image
   // load_fisher_encoding(enc_query, img_query);
   vector<float> enc_query;
-  compute_fisher_encoding_and_save(img_query, enc_query, gmm, desc_type, numClusters);
+  compute_fisher_encoding_and_save(img_query, enc_query, gmm, numClusters);
   cout << "Fisher vector size: " << enc_query.size() << endl;
   Mat query = Mat(1, enc_query.size(), CV_32F);
   memcpy(query.data, enc_query.data(), enc_query.size() * sizeof(float));
@@ -673,96 +616,78 @@ void get_k_brute_force(string img_query, string in_folder, int k, VlGMM *&gmm, D
     index.push_back(l2[i].second);
   }
   // Concatenate top-k images to show results
-  show_results(index, images_list, k, desc_type);
+  show_results(index, images_list, k);
 }
 
-void example_query(string query_img, string in_folder, DESC_TYPE desc_type, vl_size numClusters, vl_size dimension,
+void example_query(string query_img, string in_folder, vl_size numClusters, vl_size dimension,
                    bool load_index) {
   bool success = false;
-  if (desc_type == SIFT_DESC) {
-    success = compute_sift_descriptor(query_img);
-  } else if (desc_type == KAZE_DESC) {
-    success = compute_kaze_descriptor(query_img);
-  }
+  success = compute_sift_descriptor(query_img);
 
   if (success) {
     VlGMM *gmm = NULL;
-    string file_in = "./gmm_object_" + DESC_NAMES[desc_type];
+    string file_in = "./gmm_object_sift";
     load_gmm(gmm, file_in);
-    get_knn(query_img, in_folder, 6, gmm, desc_type, numClusters, dimension, load_index);
+    get_knn(query_img, in_folder, 6, gmm, numClusters, dimension, load_index);
     // get_k_brute_force(query_img, in_folder, 9, gmm, desc_name, numClusters, dimension);
     vl_gmm_delete(gmm);
   }
 }
 
 void help() {
-  cout << "Modes: descriptors | indexing | knn.\nIf 'descriptors': \nYou must provide {'kaze' | 'sift'} "
-          "<dataset_folder> as argument. \nIf 'indexing': \nYou must provide {'kaze' | 'sift'} <dataset_folder> as "
-          "argument. \nIf 'knn': \nYou must provide {'kaze' | 'sift'} <dataset_folder> <query_image> {'save' | 'load'} "
+  cout << "Modes: descriptors | indexing | knn.\nIf 'descriptors': \nYou must provide "
+          "<dataset_folder> as argument. \nIf 'indexing': \nYou must provide <dataset_folder> as "
+          "argument. \nIf 'knn': \nYou must provide <dataset_folder> <query_image> {'save' | 'load'} "
           "as arguments where 'save' means store kdtree index (to be used first time), and 'load' will read it from "
           "memory. \n" << endl;
 }
 
 int main(int argc, char *argv[]) {
-  help();
-  if (argc < 2) {
+  if (argc < 3) {
     cout << "Wrong arguments, please read the description above.\n" << endl;
+    help();
     return 0;
   }
 
   string mode = argv[1];
-  string desc_name = argv[2];
 
   // Amount of images to be used to train GMM
-  int gmm_words = 10;
+  int gmm_words = 128;
   // Amount of clusters for GMM
-  vl_size numClusters = 30;
+  vl_size numClusters = 50;
   // Dimension for GMM
   vl_size dimension;
 
   // Test distance between two FVs
   // encoding_similarity_test("../dataset/holidays/105401.jpg", "../dataset/holidays/114400.jpg");
 
-  DESC_TYPE desc_type;
-
-  if (strcmp(desc_name.c_str(), "sift") == 0) {
-    dimension = 128;
-    desc_type = SIFT_DESC;
-  } else {
-    if (strcmp(desc_name.c_str(), "kaze") == 0) {
-      dimension = 64;
-      desc_type = KAZE_DESC;
-    } else {
-      cout << "You must provide a valid descriptor name {'kaze','sift'}" << endl;
-      return 0;
-    }
-  }
+  dimension = 128;
 
   // Compute descriptors
-  if (argc >= 3 && strcmp(mode.c_str(), "descriptors") == 0) {
-    string in_folder = argv[3];
-    compute_descriptors_and_save(in_folder, desc_type);
+  if (argc >= 2 && strcmp(mode.c_str(), "descriptors") == 0) {
+    string in_folder = argv[2];
+    compute_descriptors_and_save(in_folder);
     return 0;
   }
 
   // Example shows how to train GMM and index a database of images (Load descriptors, train GMM, create FVs)
-  if (argc >= 3 && strcmp(mode.c_str(), "indexing") == 0) {
-    string in_folder = argv[3];
-    example_get_indexing(in_folder, gmm_words, desc_type, dimension, numClusters);
+  if (argc >= 2 && strcmp(mode.c_str(), "indexing") == 0) {
+    string in_folder = argv[2];
+    example_get_indexing(in_folder, gmm_words, dimension, numClusters);
     return 0;
   }
 
   // Example shows how to query an image and get N most similar images
-  if (argc >= 4 && strcmp(mode.c_str(), "knn") == 0) {
-    string in_folder = argv[3];
-    string query_img = argv[4];
-    string load_kdtree = argv[5];
+  if ((argc >= 3) & (strcmp(mode.c_str(), "knn") == 0)) {
+    string in_folder = argv[2];
+    string query_img = argv[3];
+    string load_kdtree = argv[4];
 
     if (strcmp(load_kdtree.c_str(), "load") == 0) {
-      example_query(query_img, in_folder, desc_type, numClusters, dimension, true);
+      example_query(query_img, in_folder, numClusters, dimension, true);
     } else {
       if (strcmp(load_kdtree.c_str(), "save") == 0) {
-        example_query(query_img, in_folder, desc_type, numClusters, dimension, false);
+        example_query(query_img, in_folder, numClusters, dimension, false);
       }
     }
     return 0;
