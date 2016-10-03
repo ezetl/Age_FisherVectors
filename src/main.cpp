@@ -10,6 +10,7 @@
 #include "opencv2/xfeatures2d.hpp"
 
 #define STRIDE 4
+#define FACE_SIZE 100
 
 // The VLFeat header files need to be declared external.
 extern "C" {
@@ -120,11 +121,50 @@ bool compute_kaze_descriptor(string filename) {
   return true;
 }
 
-void mat2float(cv::Mat img, float* img_float) {
+void mat2float(cv::Mat img, std::vector<float>& img_float) {
   for (int i = 0; i < img.rows; ++i) {
     for (int j = 0; j < img.cols; ++j) {
       img_float[i * img.rows + j] = img.at<unsigned char>(i, j) / 255.0f;
     }
+  }
+}
+
+VlDsiftKeypoint normalize_kpoint(VlDsiftKeypoint const &orig_kp) {
+  double x = orig_kp.x;
+  double y = orig_kp.y;
+  VlDsiftKeypoint new_point;
+  new_point.x = x / (double)FACE_SIZE;
+  // normalize between -1 and 1
+  new_point.x = new_point.x * (1 - (-1)) + (-1);
+  new_point.y = y / (double)FACE_SIZE;
+  new_point.y = new_point.y * (1 - (-1)) + (-1);
+  return new_point;
+}
+
+void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint const *keypoints1, int nkps1,
+                                  float const *descriptors2, VlDsiftKeypoint const *keypoints2, int nkps2,
+                                  int desc_size, std::vector<std::vector<float> > &concat_feats) {
+  // TODO: memcpy instead of iteration over all elems
+  for (int i = 0; i < nkps1; ++i) {
+    std::vector<float> tmp;
+    for (int j = 0; j < desc_size; ++j) {
+      //OJO: vl_dsift_get_descriptors devuelve un puntero, hay que hacer copia de eso
+      tmp.push_back(descriptors1[i * desc_size + j]);
+    }
+    VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
+    tmp.push_back(new_kp.x);
+    tmp.push_back(new_kp.y);
+    concat_feats.push_back(tmp);
+  }
+  for (int i = 0; i < nkps2; ++i) {
+    std::vector<float> tmp;
+    for (int j = 0; j < desc_size; ++j) {
+      tmp.push_back(descriptors2[i * desc_size + j]);
+    }
+    VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
+    tmp.push_back(new_kp.x);
+    tmp.push_back(new_kp.y);
+    concat_feats.push_back(tmp);
   }
 }
 
@@ -139,49 +179,44 @@ bool compute_sift_descriptor(string filename) {
   }
 
   // Resize image
-  //int max_size = 640;
-  //if (img.cols > max_size)
   Mat aux_img;
   resize(img, aux_img, Size(100, 100), INTER_CUBIC);
-  float* img_float = (float*)calloc((size_t)(aux_img.rows * aux_img.cols), sizeof(float));
-  assert(img_float != NULL);
+  //TODO: align image here
+  std::vector<float> img_float(aux_img.rows * aux_img.cols);
   mat2float(aux_img, img_float);
 
   // Compute descriptor
   VlDsiftFilter* vlf = vl_dsift_new(aux_img.rows, aux_img.cols);
   vl_dsift_set_steps(vlf, STRIDE, STRIDE);
 
+  // numBinT, numBinX, numBinY, binSizeX, binSizeY
   VlDsiftDescriptorGeometry vlf_geometry = {8, 4, 4, 4, 4};
   vl_dsift_set_geometry(vlf, &vlf_geometry);
-  std::cout << "created new dsift struct2\n";
-  std::cout << img_float[0] << std::endl;
-  vl_dsift_process(vlf, img_float);
-  std::cout << "created new dsift struct3\n";
-  int nkps = vl_dsift_get_keypoint_num(vlf);
+  vl_dsift_process(vlf, &img_float[0]);
+  int nkps1 = vl_dsift_get_keypoint_num(vlf);
   int sdesc = vl_dsift_get_descriptor_size(vlf);
   assert(sdesc == 128);
-  std::cout << "Number of KEYPOINTS1: " << nkps << std::endl;
-  std::cout << "Size of descriptor1: " <<  sdesc << std::endl;
   VlDsiftKeypoint const* keypoints1 = vl_dsift_get_keypoints(vlf);
-  float const* descriptors1 = vl_dsift_get_descriptors(vlf);
+  float const* tmp_descs = vl_dsift_get_descriptors(vlf);
+  float* descriptors1 = (float*)malloc((size_t)(nkps1 * sdesc)); 
+  descriptors1 = (float*)memcpy((void*)descriptors1, (void*)tmp_descs, (size_t)(nkps1*sdesc));
 
-  //for (int i = 0; i < nkps; i++) {
-  //    for (int j = 0; j < 128; j++) {
-  //        std::cout << descriptors1[i * 128 + j] << " ";
-  //    }
-  //    std::cout << std::endl << std::endl << std::endl << std::endl;
-  //    
-  //}
 
   vlf_geometry = {8, 4, 4, 8, 8};
   vl_dsift_set_geometry(vlf, &vlf_geometry);
-  vl_dsift_process(vlf, img_float);
-  nkps = vl_dsift_get_keypoint_num(vlf);
+  vl_dsift_process(vlf, &img_float[0]);
+  int nkps2 = vl_dsift_get_keypoint_num(vlf);
   sdesc = vl_dsift_get_descriptor_size(vlf);
-  std::cout << "Number of KEYPOINTS2: " << nkps << std::endl;
-  std::cout << "Size of descriptor2: " <<  sdesc << std::endl;
+  assert(sdesc == 128);
   VlDsiftKeypoint const* keypoints2 = vl_dsift_get_keypoints(vlf);
   float const* descriptors2 = vl_dsift_get_descriptors(vlf);
+
+  //TODO(ezetlopez): run PCA here, set sdesc to 66 (64 PCA and x,y coords)
+
+  std::cout << "about to concatenate\n";
+  std::vector< std::vector<float> > concat_feats;
+  concatenate_features_kpoints(descriptors1, keypoints1, nkps1, descriptors2, keypoints2, nkps2, sdesc, concat_feats);
+  std::cout << "concat size: " << concat_feats.size() << std::endl;
 
   //vector<KeyPoint> kpts;
   //Mat desc;
@@ -198,7 +233,7 @@ bool compute_sift_descriptor(string filename) {
   //save_image_descriptor(filename, kpts, desc, "sift");
 
   vl_dsift_delete(vlf);
-  free(img_float);
+  free(descriptors1);
 
   return true;
 }
