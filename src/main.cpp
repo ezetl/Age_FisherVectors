@@ -26,9 +26,6 @@ using namespace cv;
 #define TYPE float
 #define VL_F_TYPE VL_TYPE_FLOAT
 
-enum DESC_TYPE { KAZE_DESC, SIFT_DESC };
-string DESC_NAMES[] = {"kaze", "sift"};
-
 void save_image_descriptor(string filename, std::vector< std::vector<float> > feats) {
   /*
   string data_out = filename.substr(0,filename.find_last_of("."))+"_"+desc_name;
@@ -652,9 +649,9 @@ int main(int argc, char *argv[]) {
   string mode = argv[1];
 
   // Amount of images to be used to train GMM
-  int gmm_words = 128;
+  int gmm_words = 10;
   // Amount of clusters for GMM
-  vl_size numClusters = 50;
+  vl_size numClusters = 30;
   // Dimension for GMM
   vl_size dimension;
 
