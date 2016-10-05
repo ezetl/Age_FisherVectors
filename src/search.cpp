@@ -111,22 +111,17 @@ VlDsiftKeypoint normalize_kpoint(VlDsiftKeypoint const &orig_kp) {
   return new_point;
 }
 
-//void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint const *keypoints1, int nkps1,
-//                                  float const *descriptors2, VlDsiftKeypoint const *keypoints2, int nkps2,
-//                                  int desc_size, std::vector< std::vector<float> > &concat_feats) {
-void concatenate_features_kpoints(float const *descriptors1, int nkps1,
-                                  float const *descriptors2, int nkps2,
+void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint const *keypoints1, int nkps1,
+                                  float const *descriptors2, VlDsiftKeypoint const *keypoints2, int nkps2,
                                   int desc_size, std::vector< std::vector<float> > &concat_feats) {
-    std::cout << "nkps1: " << nkps1 << std::endl;
-    std::cout << "nkps2: " << nkps2 << std::endl;
   for (int i = 0; i < nkps1; ++i) {
     std::vector<float> tmp;
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors1[i * desc_size + j]);
     }
-    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
-    //tmp.push_back(new_kp.x);
-    //tmp.push_back(new_kp.y);
+    VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
+    tmp.push_back(new_kp.x);
+    tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
   for (int i = 0; i < nkps2; ++i) {
@@ -134,9 +129,9 @@ void concatenate_features_kpoints(float const *descriptors1, int nkps1,
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors2[i * desc_size + j]);
     }
-    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
-    //tmp.push_back(new_kp.x);
-    //tmp.push_back(new_kp.y);
+    VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
+    tmp.push_back(new_kp.x);
+    tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
 }
@@ -189,8 +184,7 @@ bool compute_sift_descriptor(string filename) {
   std::cout << "about to concatenate\n";
   std::cout << filename << std::endl;
   std::vector< std::vector<float> > concat_feats;
-  //concatenate_features_kpoints(descriptors1, keypoints1, nkps1, descriptors2, keypoints2, nkps2, sdesc, concat_feats);
-  concatenate_features_kpoints(descriptors1, nkps1, descriptors2, nkps2, sdesc, concat_feats);
+  concatenate_features_kpoints(descriptors1, keypoints1, nkps1, descriptors2, keypoints2, nkps2, sdesc, concat_feats);
   std::cout << "concat size: " << concat_feats.size() << std::endl;
 
   // Save descriptor

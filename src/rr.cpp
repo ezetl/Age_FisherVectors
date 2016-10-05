@@ -4,6 +4,7 @@
 #include <dlib/svm.h>
 
 #define FEATURES_SIZE 7680 
+#define PATHS "/media/ezetl/0C74D0DD74D0CB1A/Datasets/Faces/imdbwiki_fv/imdbwiki_fvpaths.txt"
 
 using namespace dlib;
 using namespace std;
@@ -18,7 +19,7 @@ void load_fisher_vectors(string list_filename, std::vector<sample_type>& X, std:
 int main(){
     std::vector<sample_type> X;
     std::vector<label_type> y;
-    load_fisher_vectors("/media/ezetl/0C74D0DD74D0CB1A/Datasets/Faces/imdbwiki_fv/imdbwiki_fvpaths.txt", X, y);
+    load_fisher_vectors(PATHS, X, y);
     rr_trainer<lin_kernel> trainer = rr_trainer<lin_kernel>();
     return 0;
 }
