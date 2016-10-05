@@ -111,14 +111,17 @@ VlDsiftKeypoint normalize_kpoint(VlDsiftKeypoint const &orig_kp) {
   return new_point;
 }
 
-void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint const *keypoints1, int nkps1,
-                                  float const *descriptors2, VlDsiftKeypoint const *keypoints2, int nkps2,
-                                  int desc_size, std::vector<std::vector<float> > &concat_feats) {
-  // TODO: memcpy instead of iteration over all elems
+//void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint const *keypoints1, int nkps1,
+//                                  float const *descriptors2, VlDsiftKeypoint const *keypoints2, int nkps2,
+//                                  int desc_size, std::vector< std::vector<float> > &concat_feats) {
+void concatenate_features_kpoints(float const *descriptors1, int nkps1,
+                                  float const *descriptors2, int nkps2,
+                                  int desc_size, std::vector< std::vector<float> > &concat_feats) {
+    std::cout << "nkps1: " << nkps1 << std::endl;
+    std::cout << "nkps2: " << nkps2 << std::endl;
   for (int i = 0; i < nkps1; ++i) {
     std::vector<float> tmp;
     for (int j = 0; j < desc_size; ++j) {
-      //OJO: vl_dsift_get_descriptors devuelve un puntero, hay que hacer copia de eso
       tmp.push_back(descriptors1[i * desc_size + j]);
     }
     //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
@@ -131,7 +134,7 @@ void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint con
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors2[i * desc_size + j]);
     }
-    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
+    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
     //tmp.push_back(new_kp.x);
     //tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
@@ -168,8 +171,8 @@ bool compute_sift_descriptor(string filename) {
   assert(sdesc == 128);
   VlDsiftKeypoint const* keypoints1 = vl_dsift_get_keypoints(vlf);
   float const* tmp_descs = vl_dsift_get_descriptors(vlf);
-  float* descriptors1 = (float*)malloc((size_t)(nkps1 * sdesc)); 
-  descriptors1 = (float*)memcpy((void*)descriptors1, (void*)tmp_descs, (size_t)(nkps1*sdesc));
+  float* descriptors1 = (float*)malloc((size_t)(nkps1 * sdesc * sizeof(float))); 
+  descriptors1 = (float*)memcpy((void*)descriptors1, (void*)tmp_descs, (size_t)(nkps1*sdesc*sizeof(float)));
 
 
   vlf_geometry = {8, 4, 4, 8, 8};
@@ -184,8 +187,10 @@ bool compute_sift_descriptor(string filename) {
   //TODO(ezetlopez): run PCA here, set sdesc to 66 (64 PCA and x,y coords)
 
   std::cout << "about to concatenate\n";
+  std::cout << filename << std::endl;
   std::vector< std::vector<float> > concat_feats;
-  concatenate_features_kpoints(descriptors1, keypoints1, nkps1, descriptors2, keypoints2, nkps2, sdesc, concat_feats);
+  //concatenate_features_kpoints(descriptors1, keypoints1, nkps1, descriptors2, keypoints2, nkps2, sdesc, concat_feats);
+  concatenate_features_kpoints(descriptors1, nkps1, descriptors2, nkps2, sdesc, concat_feats);
   std::cout << "concat size: " << concat_feats.size() << std::endl;
 
   // Save descriptor
@@ -196,12 +201,23 @@ bool compute_sift_descriptor(string filename) {
   return true;
 }
 
-void compute_descriptors_and_save(string in_folder) {
-  vector<cv::String> images_list;
-  glob(in_folder + "/*.jpg", images_list, false);
+std::vector<std::string> load_paths(string list_paths){
+  ifstream infile;
+  infile.open(list_paths.c_str());
+  string path;
+  float age; 
+  std::vector<string> paths;
+  while (infile >> path >> age) {
+      paths.push_back(path);
+  }
+  infile.close();
+  return paths;
+}
 
+void compute_descriptors_and_save(string list_paths) {
+  vector<string> images_list = load_paths(list_paths);
   size_t count = images_list.size();
-  cout << "Images found in folder: " << in_folder << " " << count << endl;
+  cout << "Images found: " << " " << count << endl;
   for (size_t i = 0; i < count; i++) {
     compute_sift_descriptor(images_list[i]);
   }
@@ -387,7 +403,7 @@ void load_fisher_encoding(vector<float> &enc_vec, string filename) {
   infile.close();
 }
 
-vl_size load_all_descriptors(vector<cv::String> &images_list, float *&data, int gmm_words, int count,
+vl_size load_all_descriptors(std::vector<std::string> &images_list, float *&data, int gmm_words, int count,
                              vl_size dimension) {
   // Concatenate descriptors of gmm_words images to train GMM
   int all_elements = 0;
@@ -423,13 +439,12 @@ vl_size load_all_descriptors(vector<cv::String> &images_list, float *&data, int 
   return all_descriptors;
 }
 
-void example_get_indexing(string in_folder, int gmm_words, vl_size dimension, vl_size numClusters) {
+void example_get_indexing(string list_paths, int gmm_words, vl_size dimension, vl_size numClusters) {
   // Load images list from dataset and shuffle them
-  vector<cv::String> images_list;
-  glob(in_folder + "/*.jpg", images_list, false);
+  std::vector<std::string> images_list = load_paths(list_paths);
   size_t count = images_list.size();
   random_shuffle(images_list.begin(), images_list.end());
-  cout << "\nImages found in folder: " << in_folder << " " << count << endl;
+  cout << "\nImages found: " << " " << count << endl;
 
   // Load all images descriptors
   TYPE *all_descriptors_data = (TYPE *)vl_malloc(sizeof(TYPE) * gmm_words * 30000 * dimension);
@@ -455,7 +470,7 @@ void example_get_indexing(string in_folder, int gmm_words, vl_size dimension, vl
   vl_gmm_delete(gmm);
 }
 
-void show_results(vector<int> &index, vector<cv::String> &images_list, int k) {
+void show_results(vector<int> &index, std::vector<std::string> &images_list, int k) {
   int width = 640;
   int height = 480;
   Mat to_show = Mat::zeros((k / 3) * height, 3 * width, CV_8UC3);
@@ -478,7 +493,7 @@ void show_results(vector<int> &index, vector<cv::String> &images_list, int k) {
   cout << "Result saved at: " << path << endl;
 }
 
-void get_knn(string img_query, string in_folder, int k, VlGMM *&gmm, vl_size numClusters,
+void get_knn(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size numClusters,
              vl_size dimension, bool load) {
   // Compute FV for query image
   // load_fisher_encoding(enc_query, img_query);
@@ -489,10 +504,10 @@ void get_knn(string img_query, string in_folder, int k, VlGMM *&gmm, vl_size num
   memcpy(query.data, enc_query.data(), enc_query.size() * sizeof(float));
 
   // Load dataset FVs
-  vector<cv::String> images_list;
-  glob(in_folder + "/*.jpg", images_list, false);
+  std::vector<std::string> images_list;
+  images_list = load_paths(list_paths);
   size_t count = images_list.size();
-  cout << "\nImages found in folder: " << in_folder << " " << count << endl;
+  cout << "\nImages found: " << " " << count << endl;
 
   // Concatenate FVs
   cout << "\nLoading FVs for knn:" << endl;
@@ -581,7 +596,7 @@ void no_encoding_similarity_test(Mat &desc1, Mat &desc2, vector<KeyPoint> &kpts1
 
 static bool cmp_l2(pair<double, int> u, pair<double, int> v) { return u.first < v.first; }
 
-void get_k_brute_force(string img_query, string in_folder, int k, VlGMM *&gmm, vl_size numClusters,
+void get_k_brute_force(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size numClusters,
                        vl_size dimension) {
   // Compute FV for query image
   // load_fisher_encoding(enc_query, img_query);
@@ -592,10 +607,10 @@ void get_k_brute_force(string img_query, string in_folder, int k, VlGMM *&gmm, v
   memcpy(query.data, enc_query.data(), enc_query.size() * sizeof(float));
 
   // Load dataset FVs
-  vector<cv::String> images_list;
-  glob(in_folder + "/*.jpg", images_list, false);
+  std::vector<std::string> images_list;
+  images_list = load_paths(list_paths);
   size_t count = images_list.size();
-  cout << "\nImages found in folder: " << in_folder << " " << count << endl;
+  cout << "\nImages found: " << " " << count << endl;
 
   // Concatenate FVs
   vector<pair<double, int> > l2, euc;
@@ -616,7 +631,7 @@ void get_k_brute_force(string img_query, string in_folder, int k, VlGMM *&gmm, v
   show_results(index, images_list, k);
 }
 
-void example_query(string query_img, string in_folder, vl_size numClusters, vl_size dimension,
+void example_query(string query_img, string list_paths, vl_size numClusters, vl_size dimension,
                    bool load_index) {
   bool success = false;
   success = compute_sift_descriptor(query_img);
@@ -625,16 +640,16 @@ void example_query(string query_img, string in_folder, vl_size numClusters, vl_s
     VlGMM *gmm = NULL;
     string file_in = "./gmm_object_sift";
     load_gmm(gmm, file_in);
-    get_knn(query_img, in_folder, 6, gmm, numClusters, dimension, load_index);
-    // get_k_brute_force(query_img, in_folder, 9, gmm, desc_name, numClusters, dimension);
+    get_knn(query_img, list_paths, 6, gmm, numClusters, dimension, load_index);
+    // get_k_brute_force(query_img, list_paths, 9, gmm, desc_name, numClusters, dimension);
     vl_gmm_delete(gmm);
   }
 }
 
 void help() {
   cout << "Modes: descriptors | indexing | knn.\nIf 'descriptors': \nYou must provide "
-          "<dataset_folder> as argument. \nIf 'indexing': \nYou must provide <dataset_folder> as "
-          "argument. \nIf 'knn': \nYou must provide <dataset_folder> <query_image> {'save' | 'load'} "
+          "<images_list> as argument. \nIf 'indexing': \nYou must provide <images_list> as "
+          "argument. \nIf 'knn': \nYou must provide <images_list> <query_image> {'save' | 'load'} "
           "as arguments where 'save' means store kdtree index (to be used first time), and 'load' will read it from "
           "memory. \n" << endl;
 }
@@ -662,29 +677,29 @@ int main(int argc, char *argv[]) {
 
   // Compute descriptors
   if (argc >= 2 && strcmp(mode.c_str(), "descriptors") == 0) {
-    string in_folder = argv[2];
-    compute_descriptors_and_save(in_folder);
+    string list_paths = argv[2];
+    compute_descriptors_and_save(list_paths);
     return 0;
   }
 
   // Example shows how to train GMM and index a database of images (Load descriptors, train GMM, create FVs)
   if (argc >= 2 && strcmp(mode.c_str(), "indexing") == 0) {
-    string in_folder = argv[2];
-    example_get_indexing(in_folder, gmm_words, dimension, numClusters);
+    string list_paths = argv[2];
+    example_get_indexing(list_paths, gmm_words, dimension, numClusters);
     return 0;
   }
 
   // Example shows how to query an image and get N most similar images
   if ((argc >= 3) & (strcmp(mode.c_str(), "knn") == 0)) {
-    string in_folder = argv[2];
+    string list_paths = argv[2];
     string query_img = argv[3];
     string load_kdtree = argv[4];
 
     if (strcmp(load_kdtree.c_str(), "load") == 0) {
-      example_query(query_img, in_folder, numClusters, dimension, true);
+      example_query(query_img, list_paths, numClusters, dimension, true);
     } else {
       if (strcmp(load_kdtree.c_str(), "save") == 0) {
-        example_query(query_img, in_folder, numClusters, dimension, false);
+        example_query(query_img, list_paths, numClusters, dimension, false);
       }
     }
     return 0;
