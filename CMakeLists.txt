@@ -1,9 +1,12 @@
 project(fvfaces)
 cmake_minimum_required(VERSION 2.8.9)
 
+
 set(LIBS "${CMAKE_CURRENT_SOURCE_DIR}/libs")
 set(SRC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(DATA_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/data")
+
+include(${LIBS}/dlib/cmake)
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 add_definitions ("-Wall")
@@ -41,6 +44,10 @@ MACRO(add_code name)
        include_directories(${OpenCV_INCLUDE_DIRS})
    endif()
 
+   # Use DLib implementations of these dependencies
+   option(DLIB_USE_BLAS OFF)
+   option(DLIB_USE_LAPACK OFF)
+
    # VLFeat
    FIND_PATH(VLFEAT_INCLUDE_DIR vl/generic.h
        PATHS
@@ -56,10 +63,11 @@ MACRO(add_code name)
 
    INCLUDE_DIRECTORIES(${VLFEAT_INCLUDE_DIR})
 
-   ADD_EXECUTABLE("search" ${SRC}/${name}.cpp)
+   ADD_EXECUTABLE(${name} ${SRC}/${name}.cpp)
 
-   TARGET_LINK_LIBRARIES("search" ${OpenCV_LIBS} ${VLFEAT_LIBS})
+   TARGET_LINK_LIBRARIES(${name} ${OpenCV_LIBS} dlib ${VLFEAT_LIBS})
 
 ENDMACRO()
 
-add_code(main)
+add_code(search)
+add_code(rr)
