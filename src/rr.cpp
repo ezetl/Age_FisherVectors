@@ -3,8 +3,8 @@
 #include <fstream>
 #include <dlib/svm.h>
 
-#define FEATURES_SIZE 7680 
-#define PATHS "/media/ezetl/0C74D0DD74D0CB1A/Datasets/Faces/imdbwiki_fv/imdbwiki_fvpaths.txt"
+#define FEATURES_SIZE 7800 
+#define PATHS "/media/ezetl/0C74D0DD74D0CB1A/Datasets/Faces/imdbwiki_fv/imdbwiki_fvpathssss.txt"
 
 using namespace dlib;
 using namespace std;
@@ -21,6 +21,20 @@ int main(){
     std::vector<label_type> y;
     load_fisher_vectors(PATHS, X, y);
     rr_trainer<lin_kernel> trainer = rr_trainer<lin_kernel>();
+    std::cout << "Started training...\n";
+    decision_function<lin_kernel> trained = trainer.train(X, y);
+
+    serialize("rr_function.dat") << trained;
+    deserialize("rr_function.dat") >> trained;
+
+    // Test
+    std::cout << "Testing:\n";
+    label_type diff = 0.0;
+    for (unsigned int i =0 ; i < X.size(); ++i){
+        label_type predicted = trained(X[i]);
+        diff += (predicted > y[i]) ? predicted - y[i] : y[i] - predicted;
+        std::cout << "\rMAE: " << diff / (float) (i+1) << std::endl; 
+    }
     return 0;
 }
 
@@ -34,7 +48,6 @@ void load_fisher_vectors(string list_filename, std::vector<sample_type>& X, std:
       sample_type s = load_fisher_encoding(fv_path);
       X.push_back(s);
       y.push_back(age);
-      std::cout << fv_path << " " << age << std::endl;
   }
   infile.close();
 }

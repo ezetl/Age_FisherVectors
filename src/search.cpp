@@ -1,6 +1,10 @@
 #include <opencv2/features2d.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
+#include <dlib/image_io.h>
+#include <dlib/opencv.h>
+#include <dlib/image_processing/frontal_face_detector.h>
+#include <dlib/image_processing/render_face_detections.h>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -11,6 +15,8 @@
 
 #define STRIDE 4
 #define FACE_SIZE 100
+#define LANDMARKS_SIZE 68
+#define SHAPE_PREDICTOR (DATA_FOLDER "/shape_predictor_68_face_landmarks.dat")
 
 // The VLFeat header files need to be declared external.
 extern "C" {
@@ -26,16 +32,18 @@ using namespace cv;
 #define TYPE float
 #define VL_F_TYPE VL_TYPE_FLOAT
 
+dlib::shape_predictor sp;
+#ifdef DRAW_FACES
+dlib::image_window win;
+#endif
+
+typedef struct {
+    cv::Point2f center_mouth;
+    cv::Point2f center_left;
+    cv::Point2f center_right;
+} FaceTriangle;
+
 void save_image_descriptor(string filename, std::vector< std::vector<float> > feats) {
-  /*
-  string data_out = filename.substr(0,filename.find_last_of("."))+"_"+desc_name;
-  cout << "Writing descriptor data in: " << data_out << endl;
-  cv::FileStorage out_file(data_out, FileStorage::WRITE );
-  out_file << "filename" << filename;
-  out_file << "descriptor" << desc;
-  out_file << "keypoints" << kpts;
-  out_file.release();
-  */
   string data_out = filename.substr(0, filename.find_last_of(".")) + "_sift";
   FILE *ofp;
   ofp = fopen(data_out.c_str(), "w");
@@ -54,15 +62,6 @@ void save_image_descriptor(string filename, std::vector< std::vector<float> > fe
 }
 
 void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &desc) {
-  /*
-  string data_in = filename.substr(0,filename.find_last_of("."))+"_"+desc_name;
-  cout << "Loading descriptor data from: " << data_in << endl;
-  cv::FileStorage in_file(data_in, FileStorage::READ );
-  in_file["descriptor"] >> loaded_desc;
-  in_file["keypoints"] >> loaded_kpts;
-  in_file.release();
-  */
-
   FILE *ofp;
 
   string data_in = filename.substr(0, filename.find_last_of(".")) + "_sift";
@@ -119,9 +118,9 @@ void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint con
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors1[i * desc_size + j]);
     }
-    VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
-    tmp.push_back(new_kp.x);
-    tmp.push_back(new_kp.y);
+    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
+    //tmp.push_back(new_kp.x);
+    //tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
   for (int i = 0; i < nkps2; ++i) {
@@ -129,16 +128,90 @@ void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint con
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors2[i * desc_size + j]);
     }
-    VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
-    tmp.push_back(new_kp.x);
-    tmp.push_back(new_kp.y);
+    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
+    //tmp.push_back(new_kp.x);
+    //tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
 }
 
+FaceTriangle get_face_triangle_cannonical(Mat& img){
+  FaceTriangle f;
+  f.center_left.x  = 0.2 * img.rows;
+  f.center_left.y  = 0.2 * img.rows;
+  f.center_right.x = 0.8 * img.rows;
+  f.center_right.y = 0.2 * img.rows;
+  f.center_mouth.x = 0.5 * img.rows;
+  f.center_mouth.y = 0.7 * img.rows;
+  return f;
+}
+
+FaceTriangle get_face_triangle(dlib::full_object_detection &shape) {
+  FaceTriangle f;
+  // left eye
+  for (int i = 36; i < 42; ++i) {
+    f.center_left.x += shape.part(i).x();
+    f.center_left.y += shape.part(i).y();
+  }
+  // right eye
+  for (int i = 42; i < 48; ++i) {
+    f.center_right.x += shape.part(i).x();
+    f.center_right.y += shape.part(i).y();
+  }
+  // mouth
+  for (int i = 48; i < 67; ++i) {
+    f.center_mouth.x += shape.part(i).x();
+    f.center_mouth.y += shape.part(i).y();
+  }
+  f.center_left.x /= (float)6;
+  f.center_left.y /= (float)6;
+  f.center_right.x /= (float)6;
+  f.center_right.y /= (float)6;
+  f.center_mouth.x /= (float)20;
+  f.center_mouth.y /= (float)20;
+  return f;
+}
+
+void draw_triangle(FaceTriangle &t, Mat &img) {
+    cv::line(img, t.center_left, t.center_right, cv::Scalar(0,0,255));
+    cv::line(img, t.center_left, t.center_mouth, cv::Scalar(0,0,255));
+    cv::line(img, t.center_mouth, t.center_right, cv::Scalar(0,0,255));
+}
+
+void align_and_resize(Mat &img, Mat &out) {
+  // Precondition: the face has already been detected and cropped
+  // We just detect landmarks over a cropped face here
+  std::vector<dlib::rect_detection> dets;
+  dlib::cv_image<unsigned char> dlib_frame(img);
+  dlib::rectangle rect(0, 0, img.cols, img.rows);  // img is already cropped around a face
+  dlib::full_object_detection shape = sp(dlib_frame, rect);
+
+#ifdef DRAW_FACES
+  std::vector<dlib::full_object_detection> shapes;
+  shapes.push_back(shape);
+  win.clear_overlay();
+  win.set_image(dlib_frame);
+  win.add_overlay(dlib::render_face_detections(shapes));
+#endif
+
+  FaceTriangle face_triangle = get_face_triangle(shape);
+  FaceTriangle cann_triangle = get_face_triangle_cannonical(img);
+
+  Point2f vec_triangle_face[3] = {face_triangle.center_left,
+                                  face_triangle.center_right,
+                                  face_triangle.center_mouth};
+  Point2f vec_triangle_cann[3] = {cann_triangle.center_left,
+                                  cann_triangle.center_right,
+                                  cann_triangle.center_mouth};
+
+  Mat M = cv::getAffineTransform(vec_triangle_face, vec_triangle_cann);
+  warpAffine(img, out, M, cv::Size(img.cols, img.rows));
+  cv::resize(out, out, cv::Size(FACE_SIZE, FACE_SIZE));
+}
+
 bool compute_sift_descriptor(string filename) {
   // Read image
-  Mat img = imread(filename, IMREAD_GRAYSCALE);
+  Mat img = cv::imread(filename, IMREAD_GRAYSCALE);
 
   // Check for invalid input
   if (!img.data) {
@@ -146,15 +219,24 @@ bool compute_sift_descriptor(string filename) {
     return false;
   }
 
-  // Resize image
-  Mat aux_img;
-  //TODO: align image here
-  resize(img, aux_img, Size(100, 100), INTER_CUBIC);
-  std::vector<float> img_float(aux_img.rows * aux_img.cols);
-  mat2float(aux_img, img_float);
+  cv::equalizeHist(img, img);
+
+  // Align face
+  Mat aligned_face = cv::Mat::zeros(FACE_SIZE, FACE_SIZE, CV_32F);
+  align_and_resize(img, aligned_face);
+
+#ifdef DRAW_FACES
+  cv::imshow("face1", img);
+  cv::imshow("face", aligned_face);
+  cv::waitKey(100);
+#endif
+
+  // Convert to float 
+  std::vector<float> img_float(aligned_face.rows * aligned_face.cols);
+  mat2float(aligned_face, img_float);
 
   // Compute descriptor
-  VlDsiftFilter* vlf = vl_dsift_new(aux_img.rows, aux_img.cols);
+  VlDsiftFilter* vlf = vl_dsift_new(aligned_face.rows, aligned_face.cols);
   vl_dsift_set_steps(vlf, STRIDE, STRIDE);
 
   // numBinT, numBinX, numBinY, binSizeX, binSizeY
@@ -649,6 +731,9 @@ void help() {
 }
 
 int main(int argc, char *argv[]) {
+#ifdef DRAW_FACES
+  win.set_title("landmarks");
+#endif
   if (argc < 3) {
     cout << "Wrong arguments, please read the description above.\n" << endl;
     help();
@@ -672,6 +757,7 @@ int main(int argc, char *argv[]) {
   // Compute descriptors
   if (argc >= 2 && strcmp(mode.c_str(), "descriptors") == 0) {
     string list_paths = argv[2];
+    dlib::deserialize(SHAPE_PREDICTOR) >> sp;
     compute_descriptors_and_save(list_paths);
     return 0;
   }

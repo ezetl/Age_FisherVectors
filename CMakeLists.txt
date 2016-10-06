@@ -8,6 +8,9 @@ set(DATA_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 include(${LIBS}/dlib/cmake)
 
+# Uncomment this line to enable drawing the faces on screen while they're processed
+#add_definitions(-DDRAW_FACES)
+
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 add_definitions ("-Wall")
 
