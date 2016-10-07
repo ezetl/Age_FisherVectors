@@ -22,7 +22,8 @@ int main(){
     load_fisher_vectors(PATHS, X, y);
     rr_trainer<lin_kernel> trainer = rr_trainer<lin_kernel>();
     std::cout << "Started training...\n";
-    decision_function<lin_kernel> trained = trainer.train(X, y);
+    decision_function<lin_kernel> trained;
+    trained = trainer.train(X, y);
 
     serialize("rr_function.dat") << trained;
     deserialize("rr_function.dat") >> trained;
@@ -33,7 +34,7 @@ int main(){
     for (unsigned int i =0 ; i < X.size(); ++i){
         label_type predicted = trained(X[i]);
         diff += (predicted > y[i]) ? predicted - y[i] : y[i] - predicted;
-        std::cout << "\rMAE: " << diff / (float) (i+1) << std::endl; 
+        std::cout << "\rMAE: " << diff / (float) (i+1) << "predicted: " << predicted << std::endl; 
     }
     return 0;
 }
