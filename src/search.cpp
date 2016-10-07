@@ -1,6 +1,7 @@
 #include <opencv2/features2d.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
 #include <dlib/image_io.h>
 #include <dlib/opencv.h>
 #include <dlib/image_processing/frontal_face_detector.h>
@@ -15,8 +16,11 @@
 
 #define STRIDE 4
 #define FACE_SIZE 100
+#define SIFT_SIZE 128
+#define AMOUNT_SIFT_DESCS 845
 #define LANDMARKS_SIZE 68
 #define SHAPE_PREDICTOR (DATA_FOLDER "/shape_predictor_68_face_landmarks.dat")
+#define PCA_PATH (DATA_FOLDER"/pca.opencv")
 
 // The VLFeat header files need to be declared external.
 extern "C" {
@@ -33,6 +37,7 @@ using namespace cv;
 #define VL_F_TYPE VL_TYPE_FLOAT
 
 dlib::shape_predictor sp;
+cv::PCA pca_64;
 #ifdef DRAW_FACES
 dlib::image_window win;
 #endif
@@ -42,6 +47,22 @@ typedef struct {
     cv::Point2f center_left;
     cv::Point2f center_right;
 } FaceTriangle;
+
+void save_pca(const char* file_name, cv::PCA &pca_) {
+  FileStorage fs(file_name, FileStorage::WRITE);
+  fs << "mean" << pca_.mean;
+  fs << "e_vectors" << pca_.eigenvectors;
+  fs << "e_values" << pca_.eigenvalues;
+  fs.release();
+}
+
+void load_pca(const char* file_name, cv::PCA &pca_) {
+  FileStorage fs(file_name, FileStorage::READ);
+  fs["mean"] >> pca_.mean;
+  fs["e_vectors"] >> pca_.eigenvectors;
+  fs["e_values"] >> pca_.eigenvalues;
+  fs.release();
+}
 
 void save_image_descriptor(string filename, std::vector< std::vector<float> > feats) {
   string data_out = filename.substr(0, filename.find_last_of(".")) + "_sift";
@@ -209,6 +230,14 @@ void align_and_resize(Mat &img, Mat &out) {
   cv::resize(out, out, cv::Size(FACE_SIZE, FACE_SIZE));
 }
 
+void float2Mat(const float* orig, Mat &dst) {
+  for (int i = 0; i < dst.rows; ++i) {
+    for (int j = 0; j < dst.cols; ++j) {
+      dst.at<float>(i, j) = orig[i * SIFT_SIZE + j];
+    }
+  }
+}
+
 bool compute_sift_descriptor(string filename) {
   // Read image
   Mat img = cv::imread(filename, IMREAD_GRAYSCALE);
@@ -262,6 +291,16 @@ bool compute_sift_descriptor(string filename) {
   float const* descriptors2 = vl_dsift_get_descriptors(vlf);
 
   //TODO(ezetlopez): run PCA here, set sdesc to 66 (64 PCA and x,y coords)
+  Mat projection1;
+  Mat orig1(nkps1, SIFT_SIZE, CV_32F);
+  float2Mat(descriptors1, orig1);
+
+  Mat projection2;
+  Mat orig2(nkps2, SIFT_SIZE, CV_32F);
+  float2Mat(descriptors2, orig2);
+
+  pca_64.project(orig1, projection1);
+  pca_64.project(orig2, projection2);
 
   std::cout << "about to concatenate\n";
   std::cout << filename << std::endl;
@@ -288,6 +327,26 @@ std::vector<std::string> load_paths(string list_paths){
   }
   infile.close();
   return paths;
+}
+
+void compute_pca_and_save(string list_paths) {
+  vector<string> images_list = load_paths(list_paths);
+  Mat all_features(images_list.size()*AMOUNT_SIFT_DESCS, SIFT_SIZE, CV_32F);
+  for (unsigned int i=0; i<images_list.size(); ++i){
+      vector<KeyPoint> l_kpts;
+      Mat l_desc;
+      load_image_descriptor(images_list[i], l_kpts, l_desc);
+      for (int j = 0; j < l_desc.rows; j++) {
+        for (int k = 0; k < l_desc.cols; k++) {
+          all_features.at<float>(i*AMOUNT_SIFT_DESCS+j, k) = l_desc.at<float>(j,k);
+        }
+      }
+  }
+  std::cout << "Learning PCA\n";
+  cv::PCA pca(all_features,Mat(),CV_PCA_DATA_AS_ROW, 64);
+  // Save PCA
+  cv::FileStorage fs(PCA_PATH, cv::FileStorage::WRITE);
+  save_pca(PCA_PATH, pca);
 }
 
 void compute_descriptors_and_save(string list_paths) {
@@ -754,11 +813,21 @@ int main(int argc, char *argv[]) {
 
   dimension = 128;
 
+
   // Compute descriptors
   if (argc >= 2 && strcmp(mode.c_str(), "descriptors") == 0) {
     string list_paths = argv[2];
     dlib::deserialize(SHAPE_PREDICTOR) >> sp;
     compute_descriptors_and_save(list_paths);
+    return 0;
+  }
+
+  // Compute PCA
+  if (argc >= 2 && strcmp(mode.c_str(), "pca") == 0) {
+    string list_paths = argv[2];
+    cv::FileStorage fs(PCA_PATH, cv::FileStorage::READ);
+    load_pca(PCA_PATH, pca_64);
+    compute_pca_and_save(list_paths);
     return 0;
   }
 
