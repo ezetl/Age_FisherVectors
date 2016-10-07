@@ -286,11 +286,11 @@ bool compute_sift_descriptor(string filename) {
   vl_dsift_process(vlf, &img_float[0]);
   int nkps2 = vl_dsift_get_keypoint_num(vlf);
   sdesc = vl_dsift_get_descriptor_size(vlf);
-  assert(sdesc == 128);
+  assert(sdesc == SIFT_SIZE);
   VlDsiftKeypoint const* keypoints2 = vl_dsift_get_keypoints(vlf);
   float const* descriptors2 = vl_dsift_get_descriptors(vlf);
 
-  //TODO(ezetlopez): run PCA here, set sdesc to 66 (64 PCA and x,y coords)
+  //PCA 64 projection
   Mat projection1;
   Mat orig1(nkps1, SIFT_SIZE, CV_32F);
   float2Mat(descriptors1, orig1);
@@ -301,11 +301,18 @@ bool compute_sift_descriptor(string filename) {
 
   pca_64.project(orig1, projection1);
   pca_64.project(orig2, projection2);
+  sdesc = 64;
+
+  // TODO: avoid this conversion, just use Mat
+  std::vector<float> pca_descriptors1;
+  std::vector<float> pca_descriptors2; 
+  mat2float(projection1, pca_descriptors1);
+  mat2float(projection2, pca_descriptors2);
 
   std::cout << "about to concatenate\n";
   std::cout << filename << std::endl;
   std::vector< std::vector<float> > concat_feats;
-  concatenate_features_kpoints(descriptors1, keypoints1, nkps1, descriptors2, keypoints2, nkps2, sdesc, concat_feats);
+  concatenate_features_kpoints(&pca_descriptors1[0], keypoints1, nkps1, &pca_descriptors2[0], keypoints2, nkps2, sdesc, concat_feats);
   std::cout << "concat size: " << concat_feats.size() << std::endl;
 
   // Save descriptor
