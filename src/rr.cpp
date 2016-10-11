@@ -3,8 +3,7 @@
 #include <fstream>
 #include <dlib/svm.h>
 
-#define FEATURES_SIZE 7800 
-#define PATHS "/media/ezetl/0C74D0DD74D0CB1A/Datasets/Faces/imdbwiki_fv/imdbwiki_fvpathssss.txt"
+#define FEATURES_SIZE 3840 
 
 using namespace dlib;
 using namespace std;
@@ -16,27 +15,32 @@ typedef dlib::linear_kernel<sample_type> lin_kernel;
 sample_type load_fisher_encoding(string filename);
 void load_fisher_vectors(string list_filename, std::vector<sample_type>& X, std::vector<label_type>& y);
 
-int main(){
-    std::vector<sample_type> X;
-    std::vector<label_type> y;
-    load_fisher_vectors(PATHS, X, y);
-    rr_trainer<lin_kernel> trainer = rr_trainer<lin_kernel>();
-    std::cout << "Started training...\n";
-    decision_function<lin_kernel> trained;
-    trained = trainer.train(X, y);
-
-    serialize("rr_function.dat") << trained;
-    deserialize("rr_function.dat") >> trained;
-
-    // Test
-    std::cout << "Testing:\n";
-    label_type diff = 0.0;
-    for (unsigned int i =0 ; i < X.size(); ++i){
-        label_type predicted = trained(X[i]);
-        diff += (predicted > y[i]) ? predicted - y[i] : y[i] - predicted;
-        std::cout << "\rMAE: " << diff / (float) (i+1) << "predicted: " << predicted << std::endl; 
-    }
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    cout << "Please provide the file with the list of images and classes as an argument.\n" << endl;
     return 0;
+  }
+  string list_paths = argv[1];
+  std::vector<sample_type> X;
+  std::vector<label_type> y;
+  load_fisher_vectors(list_paths, X, y);
+  rr_trainer<lin_kernel> trainer = rr_trainer<lin_kernel>();
+  std::cout << "Started training...\n";
+  decision_function<lin_kernel> trained;
+  trained = trainer.train(X, y);
+
+  serialize("rr_function.dat") << trained;
+  deserialize("rr_function.dat") >> trained;
+
+  // Test
+  std::cout << "Testing:\n";
+  label_type diff = 0.0;
+  for (unsigned int i = 0; i < X.size(); ++i) {
+    label_type predicted = trained(X[i]);
+    diff += (predicted > y[i]) ? predicted - y[i] : y[i] - predicted;
+    std::cout << "\rMAE: " << diff / (float)(i + 1) << "predicted: " << predicted << std::endl;
+  }
+  return 0;
 }
 
 void load_fisher_vectors(string list_filename, std::vector<sample_type>& X, std::vector<label_type>& y) {

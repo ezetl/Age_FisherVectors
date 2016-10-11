@@ -303,9 +303,12 @@ bool compute_sift_descriptor(string filename) {
   pca_64.project(orig2, projection2);
   sdesc = 64;
 
+  transpose(projection1, projection1);
+  transpose(projection2, projection2);
+
   // TODO: avoid this conversion, just use Mat
-  std::vector<float> pca_descriptors1;
-  std::vector<float> pca_descriptors2; 
+  std::vector<float> pca_descriptors1(projection1.cols * projection1.rows);
+  std::vector<float> pca_descriptors2(projection2.cols * projection2.rows); 
   mat2float(projection1, pca_descriptors1);
   mat2float(projection2, pca_descriptors2);
 
@@ -313,7 +316,7 @@ bool compute_sift_descriptor(string filename) {
   std::cout << filename << std::endl;
   std::vector< std::vector<float> > concat_feats;
   concatenate_features_kpoints(&pca_descriptors1[0], keypoints1, nkps1, &pca_descriptors2[0], keypoints2, nkps2, sdesc, concat_feats);
-  std::cout << "concat size: " << concat_feats.size() << std::endl;
+  std::cout << "concat size: " << concat_feats.size() << " x " << concat_feats[0].size() << std::endl;
 
   // Save descriptor
   save_image_descriptor(filename, concat_feats);
@@ -351,8 +354,6 @@ void compute_pca_and_save(string list_paths) {
   }
   std::cout << "Learning PCA\n";
   cv::PCA pca(all_features,Mat(),CV_PCA_DATA_AS_ROW, 64);
-  // Save PCA
-  cv::FileStorage fs(PCA_PATH, cv::FileStorage::WRITE);
   save_pca(PCA_PATH, pca);
 }
 
@@ -825,6 +826,7 @@ int main(int argc, char *argv[]) {
   if (argc >= 2 && strcmp(mode.c_str(), "descriptors") == 0) {
     string list_paths = argv[2];
     dlib::deserialize(SHAPE_PREDICTOR) >> sp;
+    load_pca(PCA_PATH, pca_64);
     compute_descriptors_and_save(list_paths);
     return 0;
   }
@@ -832,8 +834,6 @@ int main(int argc, char *argv[]) {
   // Compute PCA
   if (argc >= 2 && strcmp(mode.c_str(), "pca") == 0) {
     string list_paths = argv[2];
-    cv::FileStorage fs(PCA_PATH, cv::FileStorage::READ);
-    load_pca(PCA_PATH, pca_64);
     compute_pca_and_save(list_paths);
     return 0;
   }
