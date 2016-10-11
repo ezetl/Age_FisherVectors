@@ -204,7 +204,7 @@ void align_and_resize(Mat &img, Mat &out) {
   // We just detect landmarks over a cropped face here
   std::vector<dlib::rect_detection> dets;
   dlib::cv_image<unsigned char> dlib_frame(img);
-  dlib::rectangle rect(0, 0, img.cols, img.rows);  // img is already cropped around a face
+  dlib::rectangle rect(0, 0, dlib_frame.nc(), dlib_frame.nr());  // img is already cropped around a face
   dlib::full_object_detection shape = sp(dlib_frame, rect);
 
 #ifdef DRAW_FACES
@@ -810,9 +810,9 @@ int main(int argc, char *argv[]) {
   string mode = argv[1];
 
   // Amount of images to be used to train GMM
-  int gmm_words = 10;
+  int gmm_words = 20000;
   // Amount of clusters for GMM
-  vl_size numClusters = 30;
+  vl_size numClusters = 50;
   // Dimension for GMM
   vl_size dimension;
 
@@ -821,12 +821,12 @@ int main(int argc, char *argv[]) {
 
   dimension = 128;
 
+  dlib::deserialize(SHAPE_PREDICTOR) >> sp;
+  load_pca(PCA_PATH, pca_64);
 
   // Compute descriptors
   if (argc >= 2 && strcmp(mode.c_str(), "descriptors") == 0) {
     string list_paths = argv[2];
-    dlib::deserialize(SHAPE_PREDICTOR) >> sp;
-    load_pca(PCA_PATH, pca_64);
     compute_descriptors_and_save(list_paths);
     return 0;
   }
