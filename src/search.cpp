@@ -522,7 +522,7 @@ void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_e
   cout << "Writing FV data in: " << fv_data_out << endl;
   ofp = fopen(fv_data_out.c_str(), "w");
   for (unsigned int i = 0; i < 2 * dimension * numClusters; i++) {
-    fprintf(ofp, " %f ", (enc)[i]);
+    fprintf(ofp, " %e ", (enc)[i]);
     vec_enc.push_back((enc)[i]);
   }
   fclose(ofp);
@@ -564,11 +564,10 @@ vl_size load_all_descriptors(std::vector<std::string> &images_list, float *&data
 
     // Concatenate descriptors
     vl_size numData = l_desc.rows;
-    cout << "Descriptors to add: " << numData << endl;
     // fprintf(ofp, "%llu %llu ", numData, dimension);
     for (unsigned int row = 0; row < numData; row++) {
       for (unsigned int col = 0; col < dimension; col++) {
-        data[row * dimension + col] = (l_desc.at<float>(row, col));
+        data[all_elements + row * dimension + col] = (l_desc.at<float>(row, col));
         // fprintf(ofp, "%f ",((float*) data)[all_elements+row*dimension+col]);
       }
     }
@@ -590,7 +589,8 @@ void example_get_indexing(string list_paths, int gmm_words, vl_size dimension, v
   cout << "\nImages found: " << " " << count << endl;
 
   // Load all images descriptors
-  TYPE *all_descriptors_data = (TYPE *)vl_malloc(sizeof(TYPE) * gmm_words * 30000 * dimension);
+  // TODO: 30000?! what is that?
+  float *all_descriptors_data = (float*)vl_malloc(sizeof(float) * gmm_words * 845 * dimension);
   vl_size desc_amount = load_all_descriptors(images_list, all_descriptors_data, gmm_words, count, dimension);
 
   // Train GMM
@@ -812,14 +812,9 @@ int main(int argc, char *argv[]) {
   // Amount of images to be used to train GMM
   int gmm_words = 20000;
   // Amount of clusters for GMM
-  vl_size numClusters = 50;
+  vl_size numClusters = 128;
   // Dimension for GMM
   vl_size dimension;
-
-  // Test distance between two FVs
-  // encoding_similarity_test("../dataset/holidays/105401.jpg", "../dataset/holidays/114400.jpg");
-
-  dimension = 128;
 
   dlib::deserialize(SHAPE_PREDICTOR) >> sp;
   load_pca(PCA_PATH, pca_64);
@@ -839,6 +834,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Example shows how to train GMM and index a database of images (Load descriptors, train GMM, create FVs)
+  dimension = 64;
   if (argc >= 2 && strcmp(mode.c_str(), "indexing") == 0) {
     string list_paths = argv[2];
     example_get_indexing(list_paths, gmm_words, dimension, numClusters);
