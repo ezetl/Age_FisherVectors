@@ -3,7 +3,7 @@
 #include <fstream>
 #include <dlib/svm.h>
 
-#define FEATURES_SIZE 3840 
+#define FEATURES_SIZE 16384 
 
 using namespace dlib;
 using namespace std;
