@@ -20,7 +20,7 @@
 #define AMOUNT_SIFT_DESCS 845
 #define LANDMARKS_SIZE 68
 #define SHAPE_PREDICTOR (DATA_FOLDER "/shape_predictor_68_face_landmarks.dat")
-#define PCA_PATH (DATA_FOLDER"/pca.opencv")
+#define PCA_PATH (DATA_FOLDER "/pca.opencv")
 
 // The VLFeat header files need to be declared external.
 extern "C" {
@@ -43,12 +43,12 @@ dlib::image_window win;
 #endif
 
 typedef struct {
-    cv::Point2f center_mouth;
-    cv::Point2f center_left;
-    cv::Point2f center_right;
+  cv::Point2f center_mouth;
+  cv::Point2f center_left;
+  cv::Point2f center_right;
 } FaceTriangle;
 
-void save_pca(const char* file_name, cv::PCA &pca_) {
+void save_pca(const char *file_name, cv::PCA &pca_) {
   FileStorage fs(file_name, FileStorage::WRITE);
   fs << "mean" << pca_.mean;
   fs << "e_vectors" << pca_.eigenvectors;
@@ -56,7 +56,7 @@ void save_pca(const char* file_name, cv::PCA &pca_) {
   fs.release();
 }
 
-void load_pca(const char* file_name, cv::PCA &pca_) {
+void load_pca(const char *file_name, cv::PCA &pca_) {
   FileStorage fs(file_name, FileStorage::READ);
   fs["mean"] >> pca_.mean;
   fs["e_vectors"] >> pca_.eigenvectors;
@@ -64,7 +64,7 @@ void load_pca(const char* file_name, cv::PCA &pca_) {
   fs.release();
 }
 
-void save_image_descriptor(string filename, std::vector< std::vector<float> > feats) {
+void save_image_descriptor(string filename, std::vector<std::vector<float> > feats) {
   string data_out = filename.substr(0, filename.find_last_of(".")) + "_sift";
   FILE *ofp;
   ofp = fopen(data_out.c_str(), "w");
@@ -111,7 +111,7 @@ void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &
   fclose(ofp);
 }
 
-void mat2float(cv::Mat img, std::vector<float>& img_float) {
+void mat2float(cv::Mat img, std::vector<float> &img_float) {
   for (int i = 0; i < img.rows; ++i) {
     for (int j = 0; j < img.cols; ++j) {
       img_float[i * img.rows + j] = img.at<unsigned char>(i, j) / 255.0f;
@@ -133,15 +133,15 @@ VlDsiftKeypoint normalize_kpoint(VlDsiftKeypoint const &orig_kp) {
 
 void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint const *keypoints1, int nkps1,
                                   float const *descriptors2, VlDsiftKeypoint const *keypoints2, int nkps2,
-                                  int desc_size, std::vector< std::vector<float> > &concat_feats) {
+                                  int desc_size, std::vector<std::vector<float> > &concat_feats) {
   for (int i = 0; i < nkps1; ++i) {
     std::vector<float> tmp;
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors1[i * desc_size + j]);
     }
-    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
-    //tmp.push_back(new_kp.x);
-    //tmp.push_back(new_kp.y);
+    // VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
+    // tmp.push_back(new_kp.x);
+    // tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
   for (int i = 0; i < nkps2; ++i) {
@@ -149,17 +149,17 @@ void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint con
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors2[i * desc_size + j]);
     }
-    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
-    //tmp.push_back(new_kp.x);
-    //tmp.push_back(new_kp.y);
+    // VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
+    // tmp.push_back(new_kp.x);
+    // tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
 }
 
-FaceTriangle get_face_triangle_cannonical(Mat& img){
+FaceTriangle get_face_triangle_cannonical(Mat &img) {
   FaceTriangle f;
-  f.center_left.x  = 0.2 * img.rows;
-  f.center_left.y  = 0.2 * img.rows;
+  f.center_left.x = 0.2 * img.rows;
+  f.center_left.y = 0.2 * img.rows;
   f.center_right.x = 0.8 * img.rows;
   f.center_right.y = 0.2 * img.rows;
   f.center_mouth.x = 0.5 * img.rows;
@@ -194,9 +194,9 @@ FaceTriangle get_face_triangle(dlib::full_object_detection &shape) {
 }
 
 void draw_triangle(FaceTriangle &t, Mat &img) {
-    cv::line(img, t.center_left, t.center_right, cv::Scalar(0,0,255));
-    cv::line(img, t.center_left, t.center_mouth, cv::Scalar(0,0,255));
-    cv::line(img, t.center_mouth, t.center_right, cv::Scalar(0,0,255));
+  cv::line(img, t.center_left, t.center_right, cv::Scalar(0, 0, 255));
+  cv::line(img, t.center_left, t.center_mouth, cv::Scalar(0, 0, 255));
+  cv::line(img, t.center_mouth, t.center_right, cv::Scalar(0, 0, 255));
 }
 
 void align_and_resize(Mat &img, Mat &out) {
@@ -218,19 +218,15 @@ void align_and_resize(Mat &img, Mat &out) {
   FaceTriangle face_triangle = get_face_triangle(shape);
   FaceTriangle cann_triangle = get_face_triangle_cannonical(img);
 
-  Point2f vec_triangle_face[3] = {face_triangle.center_left,
-                                  face_triangle.center_right,
-                                  face_triangle.center_mouth};
-  Point2f vec_triangle_cann[3] = {cann_triangle.center_left,
-                                  cann_triangle.center_right,
-                                  cann_triangle.center_mouth};
+  Point2f vec_triangle_face[3] = {face_triangle.center_left, face_triangle.center_right, face_triangle.center_mouth};
+  Point2f vec_triangle_cann[3] = {cann_triangle.center_left, cann_triangle.center_right, cann_triangle.center_mouth};
 
   Mat M = cv::getAffineTransform(vec_triangle_face, vec_triangle_cann);
   warpAffine(img, out, M, cv::Size(img.cols, img.rows));
   cv::resize(out, out, cv::Size(FACE_SIZE, FACE_SIZE));
 }
 
-void float2Mat(const float* orig, Mat &dst) {
+void float2Mat(const float *orig, Mat &dst) {
   for (int i = 0; i < dst.rows; ++i) {
     for (int j = 0; j < dst.cols; ++j) {
       dst.at<float>(i, j) = orig[i * SIFT_SIZE + j];
@@ -260,12 +256,12 @@ bool compute_sift_descriptor(string filename) {
   cv::waitKey(100);
 #endif
 
-  // Convert to float 
+  // Convert to float
   std::vector<float> img_float(aligned_face.rows * aligned_face.cols);
   mat2float(aligned_face, img_float);
 
   // Compute descriptor
-  VlDsiftFilter* vlf = vl_dsift_new(aligned_face.rows, aligned_face.cols);
+  VlDsiftFilter *vlf = vl_dsift_new(aligned_face.rows, aligned_face.cols);
   vl_dsift_set_steps(vlf, STRIDE, STRIDE);
 
   // numBinT, numBinX, numBinY, binSizeX, binSizeY
@@ -275,11 +271,10 @@ bool compute_sift_descriptor(string filename) {
   int nkps1 = vl_dsift_get_keypoint_num(vlf);
   int sdesc = vl_dsift_get_descriptor_size(vlf);
   assert(sdesc == 128);
-  VlDsiftKeypoint const* keypoints1 = vl_dsift_get_keypoints(vlf);
-  float const* tmp_descs = vl_dsift_get_descriptors(vlf);
-  float* descriptors1 = (float*)malloc((size_t)(nkps1 * sdesc * sizeof(float))); 
-  descriptors1 = (float*)memcpy((void*)descriptors1, (void*)tmp_descs, (size_t)(nkps1*sdesc*sizeof(float)));
-
+  VlDsiftKeypoint const *keypoints1 = vl_dsift_get_keypoints(vlf);
+  float const *tmp_descs = vl_dsift_get_descriptors(vlf);
+  float *descriptors1 = (float *)malloc((size_t)(nkps1 * sdesc * sizeof(float)));
+  descriptors1 = (float *)memcpy((void *)descriptors1, (void *)tmp_descs, (size_t)(nkps1 * sdesc * sizeof(float)));
 
   vlf_geometry = {8, 4, 4, 8, 8};
   vl_dsift_set_geometry(vlf, &vlf_geometry);
@@ -287,10 +282,10 @@ bool compute_sift_descriptor(string filename) {
   int nkps2 = vl_dsift_get_keypoint_num(vlf);
   sdesc = vl_dsift_get_descriptor_size(vlf);
   assert(sdesc == SIFT_SIZE);
-  VlDsiftKeypoint const* keypoints2 = vl_dsift_get_keypoints(vlf);
-  float const* descriptors2 = vl_dsift_get_descriptors(vlf);
+  VlDsiftKeypoint const *keypoints2 = vl_dsift_get_keypoints(vlf);
+  float const *descriptors2 = vl_dsift_get_descriptors(vlf);
 
-  //PCA 64 projection
+  // PCA 64 projection
   Mat projection1;
   Mat orig1(nkps1, SIFT_SIZE, CV_32F);
   float2Mat(descriptors1, orig1);
@@ -308,14 +303,15 @@ bool compute_sift_descriptor(string filename) {
 
   // TODO: avoid this conversion, just use Mat
   std::vector<float> pca_descriptors1(projection1.cols * projection1.rows);
-  std::vector<float> pca_descriptors2(projection2.cols * projection2.rows); 
+  std::vector<float> pca_descriptors2(projection2.cols * projection2.rows);
   mat2float(projection1, pca_descriptors1);
   mat2float(projection2, pca_descriptors2);
 
   std::cout << "about to concatenate\n";
   std::cout << filename << std::endl;
-  std::vector< std::vector<float> > concat_feats;
-  concatenate_features_kpoints(&pca_descriptors1[0], keypoints1, nkps1, &pca_descriptors2[0], keypoints2, nkps2, sdesc, concat_feats);
+  std::vector<std::vector<float> > concat_feats;
+  concatenate_features_kpoints(&pca_descriptors1[0], keypoints1, nkps1, &pca_descriptors2[0], keypoints2, nkps2, sdesc,
+                               concat_feats);
   std::cout << "concat size: " << concat_feats.size() << " x " << concat_feats[0].size() << std::endl;
 
   // Save descriptor
@@ -326,14 +322,14 @@ bool compute_sift_descriptor(string filename) {
   return true;
 }
 
-std::vector<std::string> load_paths(string list_paths){
+std::vector<std::string> load_paths(string list_paths) {
   ifstream infile;
   infile.open(list_paths.c_str());
   string path;
-  float age; 
+  float age;
   std::vector<string> paths;
   while (infile >> path >> age) {
-      paths.push_back(path);
+    paths.push_back(path);
   }
   infile.close();
   return paths;
@@ -341,26 +337,27 @@ std::vector<std::string> load_paths(string list_paths){
 
 void compute_pca_and_save(string list_paths) {
   vector<string> images_list = load_paths(list_paths);
-  Mat all_features(images_list.size()*AMOUNT_SIFT_DESCS, SIFT_SIZE, CV_32F);
-  for (unsigned int i=0; i<images_list.size(); ++i){
-      vector<KeyPoint> l_kpts;
-      Mat l_desc;
-      load_image_descriptor(images_list[i], l_kpts, l_desc);
-      for (int j = 0; j < l_desc.rows; j++) {
-        for (int k = 0; k < l_desc.cols; k++) {
-          all_features.at<float>(i*AMOUNT_SIFT_DESCS+j, k) = l_desc.at<float>(j,k);
-        }
+  Mat all_features(images_list.size() * AMOUNT_SIFT_DESCS, SIFT_SIZE, CV_32F);
+  for (unsigned int i = 0; i < images_list.size(); ++i) {
+    vector<KeyPoint> l_kpts;
+    Mat l_desc;
+    load_image_descriptor(images_list[i], l_kpts, l_desc);
+    for (int j = 0; j < l_desc.rows; j++) {
+      for (int k = 0; k < l_desc.cols; k++) {
+        all_features.at<float>(i * AMOUNT_SIFT_DESCS + j, k) = l_desc.at<float>(j, k);
       }
+    }
   }
   std::cout << "Learning PCA\n";
-  cv::PCA pca(all_features,Mat(),CV_PCA_DATA_AS_ROW, 64);
+  cv::PCA pca(all_features, Mat(), CV_PCA_DATA_AS_ROW, 64);
   save_pca(PCA_PATH, pca);
 }
 
 void compute_descriptors_and_save(string list_paths) {
   vector<string> images_list = load_paths(list_paths);
   size_t count = images_list.size();
-  cout << "Images found: " << " " << count << endl;
+  cout << "Images found: "
+       << " " << count << endl;
   for (size_t i = 0; i < count; i++) {
     compute_sift_descriptor(images_list[i]);
   }
@@ -490,8 +487,7 @@ void train_gmm(void *data, vl_size numData, vl_size dimension, vl_size numCluste
   vl_gmm_cluster(gmm, data, dimension);
 }
 
-void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_enc, VlGMM *&gmm,
-                                      vl_size numClusters) {
+void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_enc, VlGMM *&gmm, vl_size numClusters) {
   cout << "\nFV encoding__________________________________________________" << endl;
 
   // Load image descriptor
@@ -546,8 +542,7 @@ void load_fisher_encoding(vector<float> &enc_vec, string filename) {
   infile.close();
 }
 
-vl_size load_all_descriptors(std::vector<std::string> &images_list, float *&data, int gmm_words, int count,
-                             vl_size dimension) {
+vl_size load_all_descriptors(std::vector<std::string> &images_list, float *&data, int gmm_words, vl_size dimension) {
   // Concatenate descriptors of gmm_words images to train GMM
   int all_elements = 0;
   int all_words = 0;
@@ -555,8 +550,7 @@ vl_size load_all_descriptors(std::vector<std::string> &images_list, float *&data
 
   // FILE *ofp = fopen("./GMMDescriptors", "w+");
 
-  unsigned int GMM_size = min(gmm_words, (int)count);
-  for (size_t i = 0; i < GMM_size; i++) {
+  for (int i = 0; i < gmm_words; i++) {
     // Load descriptors
     Mat l_desc;
     vector<KeyPoint> l_kpts;
@@ -585,13 +579,15 @@ void example_get_indexing(string list_paths, int gmm_words, vl_size dimension, v
   // Load images list from dataset and shuffle them
   std::vector<std::string> images_list = load_paths(list_paths);
   size_t count = images_list.size();
+  unsigned int GMM_size = min(gmm_words, (int)count);
   random_shuffle(images_list.begin(), images_list.end());
-  cout << "\nImages found: " << " " << count << endl;
+  cout << "\nImages found: "
+       << " " << count << endl;
 
   // Load all images descriptors
   // TODO: 30000?! what is that?
-  float *all_descriptors_data = (float*)vl_malloc(sizeof(float) * gmm_words * 845 * dimension);
-  vl_size desc_amount = load_all_descriptors(images_list, all_descriptors_data, gmm_words, count, dimension);
+  float *all_descriptors_data = (float *)vl_malloc(sizeof(float) * GMM_size * 845 * dimension);
+  vl_size desc_amount = load_all_descriptors(images_list, all_descriptors_data, GMM_size, dimension);
 
   // Train GMM
   VlGMM *gmm = NULL;
@@ -636,8 +632,8 @@ void show_results(vector<int> &index, std::vector<std::string> &images_list, int
   cout << "Result saved at: " << path << endl;
 }
 
-void get_knn(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size numClusters,
-             vl_size dimension, bool load) {
+void get_knn(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size numClusters, vl_size dimension,
+             bool load) {
   // Compute FV for query image
   // load_fisher_encoding(enc_query, img_query);
   vector<float> enc_query;
@@ -650,7 +646,8 @@ void get_knn(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size nu
   std::vector<std::string> images_list;
   images_list = load_paths(list_paths);
   size_t count = images_list.size();
-  cout << "\nImages found: " << " " << count << endl;
+  cout << "\nImages found: "
+       << " " << count << endl;
 
   // Concatenate FVs
   cout << "\nLoading FVs for knn:" << endl;
@@ -753,7 +750,8 @@ void get_k_brute_force(string img_query, string list_paths, int k, VlGMM *&gmm, 
   std::vector<std::string> images_list;
   images_list = load_paths(list_paths);
   size_t count = images_list.size();
-  cout << "\nImages found: " << " " << count << endl;
+  cout << "\nImages found: "
+       << " " << count << endl;
 
   // Concatenate FVs
   vector<pair<double, int> > l2, euc;
@@ -774,8 +772,7 @@ void get_k_brute_force(string img_query, string list_paths, int k, VlGMM *&gmm, 
   show_results(index, images_list, k);
 }
 
-void example_query(string query_img, string list_paths, vl_size numClusters, vl_size dimension,
-                   bool load_index) {
+void example_query(string query_img, string list_paths, vl_size numClusters, vl_size dimension, bool load_index) {
   bool success = false;
   success = compute_sift_descriptor(query_img);
 
@@ -811,6 +808,7 @@ int main(int argc, char *argv[]) {
 
   // Amount of images to be used to train GMM
   int gmm_words = 20000;
+  // int gmm_words = 50;
   // Amount of clusters for GMM
   vl_size numClusters = 128;
   // Dimension for GMM
