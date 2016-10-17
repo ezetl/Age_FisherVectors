@@ -5,6 +5,7 @@ import sys
 import numpy as np
 from sklearn.externals import joblib
 from sklearn.linear_model import LinearRegression, RidgeCV
+from sklearn import svm
 
 OUT_LINEAR_REGRESSOR = "./data/linear_regressor"
 
@@ -22,8 +23,12 @@ if __name__ == "__main__":
     ind = 1
     for path, age in lines:
         tmp = []
-        with open(path.replace(".jpg", "_fv"), "r") as f:
-            l = [float(elem) for elem in (f.read().splitlines()[0]).split()]
+        with open(path.replace(".jpg", "_sift"), "r") as f:
+            #l = [float(elem) for elem in (f.read().splitlines()[0]).split()]
+
+            l = [float(e) for elem in f.read().splitlines() for e in elem.split()]
+            l = l[2:]
+
             X.append(l)
             sys.stdout.write("\rloading: {}       ".format(ind))
             sys.stdout.flush()
@@ -38,26 +43,25 @@ if __name__ == "__main__":
     test = X[split_index:]
     test_y = y[split_index:]
 
-    train = np.array(train)
-    test = np.array(test)
-
     print("\nTraining Linear Regressor")
     #linear_regressor = LinearRegression(fit_intercept=False, normalize=True, copy_X=False)
-    linear_regressor = RidgeCV()
+    #linear_regressor = svm.LinearSVC() # second best result, MAE 6.22 with dataset from 1-25 years
+    linear_regressor = RidgeCV() # first best option MAE 4.80 with dataset from 1-25 years
     linear_regressor.fit(train, train_y)
 
     print("Finished Training.")
-    print("Saving Trained model.")
-    joblib.dump(linear_regressor, OUT_LINEAR_REGRESSOR)
 
     # Test
-    linear_regressor = joblib.load(OUT_LINEAR_REGRESSOR)
     print("Testing trained model")
     mae = 0.0
-    for i, elem in enumerate(test):
+    testt = test
+    testt_y = test_y
+    for i, elem in enumerate(testt):
         age = linear_regressor.predict(elem)[0]
-        mae += math.fabs(age - test_y[i])
-        sys.stdout.write("\rMAE: {} - Pred: {} - Groundt: {}               ".format(mae / float(i+1), age, test_y[i]))
-        sys.stdout.flush()
+        mae += math.fabs(age - testt_y[i])
+        sys.stdout.write("\n\rMAE: {} - Pred: {} - Groundt: {}               ".format(mae / float(i+1), age, testt_y[i]))
+        #sys.stdout.flush()
     print("\nFinished Testing.")
+    print("Saving Trained model.")
+    joblib.dump(linear_regressor, OUT_LINEAR_REGRESSOR)
     sys.exit(0)

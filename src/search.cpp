@@ -68,7 +68,7 @@ void save_image_descriptor(string filename, std::vector<std::vector<float> > fea
   string data_out = filename.substr(0, filename.find_last_of(".")) + "_sift";
   FILE *ofp;
   ofp = fopen(data_out.c_str(), "w");
-  cout << "Writing descriptor data in: " << data_out << endl;
+  //cout << "Writing descriptor data in: " << data_out << endl;
 
   int rows = feats.size();
   int cols = feats[0].size();
@@ -86,7 +86,7 @@ void load_image_descriptor(string filename, vector<KeyPoint> &loaded_kpts, Mat &
   FILE *ofp;
 
   string data_in = filename.substr(0, filename.find_last_of(".")) + "_sift";
-  cout << "Loading descriptor data from: " << data_in << endl;
+  //cout << "Loading descriptor data from: " << data_in << endl;
   ofp = fopen(data_in.c_str(), "r");
 
   int rows = 0;
@@ -139,9 +139,9 @@ void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint con
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors1[i * desc_size + j]);
     }
-    // VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
-    // tmp.push_back(new_kp.x);
-    // tmp.push_back(new_kp.y);
+    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints1[i]);
+    //tmp.push_back(new_kp.x);
+    //tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
   for (int i = 0; i < nkps2; ++i) {
@@ -149,9 +149,9 @@ void concatenate_features_kpoints(float const *descriptors1, VlDsiftKeypoint con
     for (int j = 0; j < desc_size; ++j) {
       tmp.push_back(descriptors2[i * desc_size + j]);
     }
-    // VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
-    // tmp.push_back(new_kp.x);
-    // tmp.push_back(new_kp.y);
+    //VlDsiftKeypoint new_kp = normalize_kpoint(keypoints2[i]);
+    //tmp.push_back(new_kp.x);
+    //tmp.push_back(new_kp.y);
     concat_feats.push_back(tmp);
   }
 }
@@ -307,12 +307,12 @@ bool compute_sift_descriptor(string filename) {
   mat2float(projection1, pca_descriptors1);
   mat2float(projection2, pca_descriptors2);
 
-  std::cout << "about to concatenate\n";
-  std::cout << filename << std::endl;
+  //std::cout << "about to concatenate\n";
+  //std::cout << filename << std::endl;
   std::vector<std::vector<float> > concat_feats;
   concatenate_features_kpoints(&pca_descriptors1[0], keypoints1, nkps1, &pca_descriptors2[0], keypoints2, nkps2, sdesc,
                                concat_feats);
-  std::cout << "concat size: " << concat_feats.size() << " x " << concat_feats[0].size() << std::endl;
+  //std::cout << "concat size: " << concat_feats.size() << " x " << concat_feats[0].size() << std::endl;
 
   // Save descriptor
   save_image_descriptor(filename, concat_feats);
@@ -488,7 +488,7 @@ void train_gmm(void *data, vl_size numData, vl_size dimension, vl_size numCluste
 }
 
 void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_enc, VlGMM *&gmm, vl_size numClusters) {
-  cout << "\nFV encoding__________________________________________________" << endl;
+  //cout << "\nFV encoding__________________________________________________" << endl;
 
   // Load image descriptor
   vector<KeyPoint> l_kpts;
@@ -515,7 +515,7 @@ void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_e
   // Save FV into a file and convert enc to vector<float>
   FILE *ofp;
   string fv_data_out = filename.substr(0, filename.find_last_of(".")) + "_fv";
-  cout << "Writing FV data in: " << fv_data_out << endl;
+  //cout << "Writing FV data in: " << fv_data_out << endl;
   ofp = fopen(fv_data_out.c_str(), "w");
   for (unsigned int i = 0; i < 2 * dimension * numClusters; i++) {
     fprintf(ofp, " %e ", (enc)[i]);
@@ -529,6 +529,7 @@ void compute_fisher_encoding_and_save(string filename, std::vector<float> &vec_e
 }
 
 void load_fisher_encoding(vector<float> &enc_vec, string filename) {
+  //std::cout << filename << std::endl;
   ifstream infile;
   string fv_file = filename.substr(0, filename.find_last_of(".")) + "_fv";
   // cout << "Loading FV data from: " << fv_file << endl;
@@ -602,7 +603,7 @@ void example_get_indexing(string list_paths, int gmm_words, vl_size dimension, v
   for (size_t i = 0; i < count; i++) {
     vector<float> enc;
     compute_fisher_encoding_and_save(images_list[i], enc, gmm, numClusters);
-    cout << "Fisher vector size: " << enc.size() << endl;
+    //cout << "Fisher vector size: " << enc.size() << endl;
   }
 
   // Free memory
@@ -636,9 +637,10 @@ void get_knn(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size nu
              bool load) {
   // Compute FV for query image
   // load_fisher_encoding(enc_query, img_query);
+  std::cout << img_query << std::endl;
   vector<float> enc_query;
   compute_fisher_encoding_and_save(img_query, enc_query, gmm, numClusters);
-  cout << "Fisher vector size: " << enc_query.size() << endl;
+  //cout << "Fisher vector size: " << enc_query.size() << endl;
   Mat query = Mat(1, enc_query.size(), CV_32F);
   memcpy(query.data, enc_query.data(), enc_query.size() * sizeof(float));
 
@@ -646,21 +648,21 @@ void get_knn(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size nu
   std::vector<std::string> images_list;
   images_list = load_paths(list_paths);
   size_t count = images_list.size();
-  cout << "\nImages found: "
-       << " " << count << endl;
+  //cout << "\nImages found: "
+  //     << " " << count << endl;
 
   // Concatenate FVs
-  cout << "\nLoading FVs for knn:" << endl;
+  //cout << "\nLoading FVs for knn:" << endl;
   Mat dataset(count, enc_query.size(), CV_32F);
   for (size_t i = 0; i < count; i++) {
     float *row = dataset.ptr<float>(i);
     vector<float> aux_enc;
     load_fisher_encoding(aux_enc, images_list[i]);
     memcpy(row, aux_enc.data(), aux_enc.size() * sizeof(float));
-    cout << "Loading " << (i / (float)count) * 100 << " % \r";
+    //cout << "Loading " << (i / (float)count) * 100 << " % \r";
   }
 
-  cout << "\n\nKnn search working... " << endl;
+  //cout << "\n\nKnn search working... " << endl;
 
   // Search
   vector<int> index(k);
@@ -676,7 +678,7 @@ void get_knn(string img_query, string list_paths, int k, VlGMM *&gmm, vl_size nu
     kdtree.save(file_out);
     kdtree.knnSearch(query, index, dist, k, cv::flann::SearchParams(32));
   } else {
-    cout << "Loading kdtree index from memory..." << endl;
+    //cout << "Loading kdtree index from memory..." << endl;
     string file_in = "./kdtree_sift";
     flann::Index kdtree(dataset, flann::SavedIndexParams(file_in));
     kdtree.knnSearch(query, index, dist, k, cv::flann::SearchParams(32));
